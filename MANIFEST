@@ -6,6 +6,7 @@ MANIFEST
 Makefile.PL
 test.pl
 README
+FAQ
 Audit/MAPS.pm
 Audit/KillDups.pm
 Audit/PGP.pm

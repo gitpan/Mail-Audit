@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.9';
+$VERSION = '1.10';
 
 sub import {
     my $pkg = shift;
@@ -293,6 +293,11 @@ cc
 bcc
 
 =back
+
+=head1 LICENSE
+
+The usual. This program is free software; you can redistribute it
+and/or modify it under the same terms as Perl itself.
 
 =head1 BUGS
 

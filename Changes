@@ -1,6 +1,12 @@
 Revision history for Perl extension Mail::Audit.
 
-1.9 - 
+1.10 - Mon Apr 23 16:26:18 2001
+    - MH handling by Justin Mason
+    - Added a license and the FAQ
+    - And, for heaven's sake, let's finish preparing the release before
+      we upload it to CPAN, this time, eh?
+
+1.9 -
     - Mail::ListDetector plugin from Michael Stevens (Woo, mstevens++)
     - Documentation nit noted by Adrian Lattke
 

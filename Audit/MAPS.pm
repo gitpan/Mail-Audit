@@ -2,6 +2,7 @@ package Mail::Audit::MAPS;
 use Mail::Audit;
 use vars q(@VERSION);
 $VERSION = '1.8';
+$host          = '.blackholes.mail-abuse.org';
 1;
 
 package Mail::Audit;
@@ -35,7 +36,6 @@ return '';
 }
 
 sub _checkit {
-    my $MAPS          = '.rbl.maps.vix.com';
     my $OK            = '';
     my $InvalidIP     = '1 Invalid IP address ';
     my $RcvBlackHole  = '2 Received from RBL-registered spam site ';
@@ -59,7 +59,7 @@ sub _checkit {
    #
    eval {
       alarm($timeout);
-      ($name) = gethostbyname(join('.',reverse @IP) . $MAPS);
+      ($name) = gethostbyname(join('.',reverse @IP) . $Mail::Audit::MAPS::host);
       alarm(0);
    };
    return($OK) if $@ =~ /^alarm/;  # Timed out.  Let it through.
