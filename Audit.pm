@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.10';
+$VERSION = '1.11';
 
 sub import {
     my $pkg = shift;
@@ -142,6 +142,8 @@ sub pipe {
 
 sub header { $_[0]->{obj}->head->as_string() }
 sub put_header { $_[0]->{obj}->head->add($_[1],$_[2]); }
+sub replace_header { $_[0]->{obj}->head->replace ($_[1],$_[2]); }
+sub delete_header { $_[0]->{obj}->head->delete ($_[1]); }
 sub tidy { $_[0]->{obj}->tidy_body() }
 sub from { $_[0]->{obj}->head->get("From") }
 sub to { $_[0]->{obj}->head->get("To") }
@@ -248,9 +250,17 @@ Tidies up the email as per L<Mail::Internet>
 
 Retrieves the named header from the mail message.
 
-=item C<put($header, $value>)
+=item C<put_header($header, $value)>
 
 Inserts a new header into the mail message with the given value.
+
+=item C<replace_header($header, $value)>
+
+Removes the old header, adds a new one.
+
+=item C<delete_header($header)>
+
+Guess.
 
 =item C<body>
 

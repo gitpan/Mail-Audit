@@ -1,5 +1,8 @@
 Revision history for Perl extension Mail::Audit.
 
+1.11 - Thu May 17 00:16:10 2001
+    - Header and body interfaces by Justin Mason
+
 1.10 - Mon Apr 23 16:26:18 2001
     - MH handling by Justin Mason
     - Added a license and the FAQ
