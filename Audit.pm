@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.3';
+$VERSION = '1.4';
 
 sub _log {
     my ($priority, $what) = @_; 
@@ -21,7 +21,13 @@ sub _log {
 
 sub new { 
     my $class = shift;
-    my $self = bless({ @_, obj => Mail::Internet->new(\*STDIN) }, $class) ;
+    my %opts = @_;
+    my $self = bless({ 
+        %opts, 
+        obj => Mail::Internet->new(
+                    exists $opts{data}? $opts{data} : \*STDIN
+                ) 
+    }, $class) ;
     if (exists $self->{loglevel}) { 
         $logging =1;
         $loglevel = $self->{loglevel};
@@ -80,38 +86,50 @@ sub accept {
         }
 		flock(FH, LOCK_EX) 
             or _log(1,"Couldn't get exclusive lock on $file");
+		if ((${$self->{obj}->body}[0] !~ /^From\s/) && (exists $ENV{UFLINE})) {
+		    _log(3,"Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
+			print FH $ENV{UFLINE};
+			print FH $ENV{RPLINE};
+			print FH $ENV{DTLINE};
+		}
 		print FH $self->{obj}->as_mbox_string;
 		flock(FH, LOCK_UN)
             or _log(1,"Couldn't unlock on $file");
 		close FH;
 	}
-    _log(2,"Exiting with status ".DELIVERED);
+    if (!$self->{noexit}) {
+        _log(2,"Exiting with status ".DELIVERED);
 	exit DELIVERED;
+    }
 }
 
 sub reject {
 	my $self=shift;
 	return $self->{reject}->() if exists $self->{reject};
-    _log(1, "Rejecting with reason @_");
+        _log(1, "Rejecting with reason @_");
 	print STDERR @_;
-    _log(2,"Exiting with status ".REJECTED);
+    if (!$self->{noexit}) {
+        _log(2,"Exiting with status ".REJECTED);
 	exit REJECTED;
+    }
 }
 
 sub pipe {
 	my $self = shift;
 	my $file = shift;
 	return $self->{pipe}->() if exists $self->{pipe};
-    _log(1, "Piping to $file");
+        _log(1, "Piping to $file");
 	unless (open (PIPE, "|$file")) {
-        _log(0, "Couldn't open pipe $file: $!");
-        $self->accept();
-    }
+            _log(0, "Couldn't open pipe $file: $!");
+            $self->accept();
+        }
 	$self->{obj}->print(\*PIPE);
 	close PIPE;
-    _log(3,"Pipe closed with status $?");
-    _log(2,"Exiting with status ".DELIVERED);
-	exit DELIVERED;
+        _log(3,"Pipe closed with status $?");
+        if (!$self->{noexit}) {
+            _log(2,"Exiting with status ".DELIVERED);
+            exit DELIVERED;
+        }
 }
 
 sub tidy { $_[0]->{obj}->tidy() }
@@ -120,10 +138,11 @@ sub to { $_[0]->{obj}->head->get("To") }
 sub subject { $_[0]->{obj}->head->get("Subject") }
 sub bcc { $_[0]->{obj}->head->get("Bcc") }
 sub cc { $_[0]->{obj}->head->get("Cc") }
-sub received { $_[0]->{obj}->head->get("Recieved") }
+sub body { $_[0]->{obj}->body }
+sub received { $_[0]->{obj}->head->get("Received") }
 sub get { $_[0]->{obj}->head->get($_[1]) }
 sub resend {$_[0]->{obj}->smtpsend(To => $_[1]) }
-sub ignore { _log(1,"Ignoring"); exit DELIVERED }
+sub ignore { _log(1,"Ignoring"); exit DELIVERED unless $_[0]->{noexit} }
 
 sub myALRM { die "alarm\n" }
 sub rblcheck {
@@ -217,22 +236,21 @@ to stick in a F<.forward> file or similar.
 
 =over 4
 
-=item C<new(%overrides)>
+=item C<new(%options)>
 
-The constructor reads a mail message from C<STDIN> and creates a
-C<Mail::Audit> object from it, to be manipulated by the following
-methods.
+The constructor reads a mail message from C<STDIN> (or, if the C<data>
+option is set, from an array reference) and creates a C<Mail::Audit>
+object from it, to be manipulated by the following methods.
 
-You may optionally specify a hash with C<accept>, C<reject> or C<pipe>
-keys and with subroutine references to override the methods with those
-names. For example, people using MH as their mail handler will want to
-override C<accept> to reflect the local delivery method of that mailer.
+Other options include the C<accept>, C<reject> or C<pipe> keys, which
+specify subroutine references to override the methods with those names.
 
-You may also specify C<log => $logfile> to write a debugging log; you
+You may also specify C<< log => $logfile >> to write a debugging log; you
 can set the verbosity of the log with the C<loglevel> key, on a scale of
 1 to 4. If you specify a log level without a log file, logging will be
 written to F</tmp/you-audit.log> where F<you> is replaced by your user
-name.
+name. If you specify C<< noexit => 1>>, C<Mail::Audit> will not exit
+after delivering the mail, but continue running your filter. 
 
 =back
 
@@ -281,7 +299,11 @@ Tidies up the email as per L<Mail::Internet>
 
 Retrieves the named header from the mail message.
 
-=item C<resent($address)>
+=item C<body>
+
+Returns an array of lines in the body of the email.
+
+=item C<resend($address)>
 
 Bounces the email in its entirety to another address.
 
@@ -317,8 +339,7 @@ bcc
 
 =head1 BUGS
 
-Only tested on qmail and postfix, and I don't know how universally the
-exit code 100 means reject.
+Probably loads.
 
 =head1 AUTHOR
 
