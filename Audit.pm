@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.5';
+$VERSION = '1.6';
 
 sub _log {
     my ($priority, $what) = @_; 
@@ -48,7 +48,7 @@ sub new {
 
 sub accept {
 	my $self = shift;
-	my $file = shift || "/var/spool/mail/".getpwuid($>);
+	my $file = shift || $ENV{MAIL} || "/var/spool/mail/".getpwuid($>);
     _log(1,"Accepting");
 	return $self->{accept}->() if exists $self->{accept};
     _log(2,"Accepting to $file");
@@ -132,7 +132,8 @@ sub pipe {
         }
 }
 
-sub tidy { $_[0]->{obj}->tidy() }
+sub header { $_[0]->{obj}->head->as_string() }
+sub tidy { $_[0]->{obj}->tidy_body() }
 sub from { $_[0]->{obj}->head->get("From") }
 sub to { $_[0]->{obj}->head->get("To") }
 sub subject { $_[0]->{obj}->head->get("Subject") }
@@ -302,6 +303,10 @@ Retrieves the named header from the mail message.
 =item C<body>
 
 Returns an array of lines in the body of the email.
+
+=item C<header>
+
+Returns the header as a single string.
 
 =item C<resend($address)>
 

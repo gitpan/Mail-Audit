@@ -1,5 +1,8 @@
 Revision history for Perl extension Mail::Audit.
 
+1.6 - Sat Jan 13 22:36:46 2001
+    - Include first stab at proc2ma
+
 1.5   Sun Jan  7 14:04:59 2001
     - Include popread
 

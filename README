@@ -1,8 +1,8 @@
 
 MAIL::AUDIT
 
-This is the 1.4 release of Mail::Audit, which is mainly a bugfix
-release, but also includes the "popread" fetchmail replacement. 
+This is the 1.6 release of Mail::Audit, which includes both "popread"
+and "proc2ma"
 
 This is what Mail::Audit is all about:
 
@@ -48,6 +48,13 @@ you) saving you bandwidth too.
 You don't have to use popread, but if you do, it requires the
 Mail::POP3Client module from CPAN. Remember to add your filter code to
 it, and set up your POP3 accounts, before attempting to run the program.
+
+PROC2MA
+
+This is a very early version of a program which automatically converts
+your legacy procmail rc files into Mail::Audit filters. Don't expect it
+to work flawlessly on complex rcs. If you want to use it, you need the
+Parse::RecDescent module from CPAN.
 
 BUG FIXES AND SUGGESTIONS
 
