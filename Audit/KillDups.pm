@@ -1,7 +1,7 @@
 package Mail::Audit::KillDups;
 use Mail::Audit;
 use vars qw(@VERSION $dupfile);
-$VERSION = '1.7';
+$VERSION = '1.8';
 $dupfile = ".msgid-cache";
 1;
 

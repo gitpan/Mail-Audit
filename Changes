@@ -1,5 +1,9 @@
 Revision history for Perl extension Mail::Audit.
 
+1.8 - Mon Feb 12 16:27:00 2001
+    - Some small fixes to proc2ma
+    - put_header and ::PGP plugin as suggested by Zebee Johnstone
+
 1.7 - Sat Jan 27 11:17:56 2001
     - Race condition fixed; thanks to Dave Smith.
     - Also check $ENV{MAIL}: thanks to Shizukesa.

@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.7';
+$VERSION = '1.8';
 
 sub import {
     my $pkg = shift;
@@ -141,6 +141,7 @@ sub pipe {
 }
 
 sub header { $_[0]->{obj}->head->as_string() }
+sub put_header { $_[0]->{obj}->head->put(@_); }
 sub tidy { $_[0]->{obj}->tidy_body() }
 sub from { $_[0]->{obj}->head->get("From") }
 sub to { $_[0]->{obj}->head->get("To") }
@@ -154,61 +155,6 @@ sub resend {$_[0]->{obj}->smtpsend(To => $_[1]) }
 sub ignore { _log(1,"Ignoring"); exit DELIVERED unless $_[0]->{noexit} }
 
 sub myALRM { die "alarm\n" }
-sub rblcheck {
-my ($self, $timeout) = (shift, shift);
-_log(1,"Performing RBL check");
-my @recieved      = $self->received;
-my $rcvcount      = 0;
-$timeout = 10 unless defined $timeout;
-
-# Catch ALRM signals so we can timeout DNS lookups
-$SIG{ALRM} = 'myALRM';
-&myALRM() if 0;              # make -w shut up
-for (@recieved) {
-    my $x = _checkit($rcvcount,$_,$timeout);
-    if ($x) {
-        _log(2, "Check returned $x after ".(1+$rcvcount)." recieved headers");
-        return $x
-    }
-    $rcvcount++;  # Any further Received lines won't be the first.
-}
-_log(2, "Check was fine");
-return '';
-}
-
-sub checkit {
-    my $MAPS          = '.rbl.maps.vix.com';
-    my $OK            = '';
-    my $InvalidIP     = '1 Invalid IP address ';
-    my $RcvBlackHole  = '2 Received from RBL-registered spam site ';
-    my $RlyBlackHole  = '3 Relayed through RBL-registered spam site ';
-
-   my($relay,$rcvd,$timeout) = @_;
-   my($IP,@IP) = $rcvd =~ /\[((\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))\]/;
-   my($name,$x);
-   # We can't complain if there's no IP address in this Received header.
-   return ($OK) unless defined $IP;
-   # Outer limits lose
-   return ($InvalidIP.$IP) if $IP eq '0.0.0.0';
-   return ($InvalidIP.$IP) if $IP eq '255.255.255.255';
-   # All @IP components must be >= 0 and <= 255
-   foreach $x ( @IP ) {
-      return ($InvalidIP.$IP) if $x > 255;
-      return ($InvalidIP.$IP) if $x =~ /^0\d/;    # no leading zeroes allowed
-   }
-   #
-   # Wrap the gethostbyname call with eval in case it times out.
-   #
-   eval {
-      alarm($timeout);
-      ($name) = gethostbyname(join('.',reverse @IP) . $MAPS);
-      alarm(0);
-   };
-   return($OK) if $@ =~ /^alarm/;  # Timed out.  Let it through.
-   return($OK) unless $name;       # If it's ok with MAPS, it's OK with us.
-   return($relay ? $RlyBlackHole.$IP : $RcvBlackHole.$IP);
-}
-
 
 1;
 __END__
@@ -307,6 +253,10 @@ Tidies up the email as per L<Mail::Internet>
 =item C<get($header)>
 
 Retrieves the named header from the mail message.
+
+=item C<put($header, $value>)
+
+Inserts a new header into the mail message with the given value.
 
 =item C<body>
 

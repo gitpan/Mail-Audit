@@ -1,7 +1,7 @@
 package Mail::Audit::MAPS;
 use Mail::Audit;
 use vars q(@VERSION);
-$VERSION = '1.7';
+$VERSION = '1.8';
 1;
 
 package Mail::Audit;
