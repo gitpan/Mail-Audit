@@ -9,14 +9,19 @@ use strict;
 
 sub fix_pgp_headers {
     my $item = shift;
-    if ($item->body =~ /^-----BEGIN PGP MESSAGE-----/ and
-        $item->body =~ /^-----END PGP MESSAGE-----/) {
+    my $item_body = $item->body;
+    my $body;
+
+    $body .= $_ foreach (@$item_body);
+
+    if ($body =~ /^-----BEGIN PGP MESSAGE-----/m and
+        $body =~ /^-----END PGP MESSAGE-----/m) {
         $item->put_header("Content-Type:", 
             "application/pgp; format=text; x-action=encrypt");
     }
-    if ($item->body =~ /^-----BEGIN PGP SIGNED MESSAGE-----/ and
-        $item->body =~ /^-----BEGIN PGP SIGNATURE-----/ and
-        $item->body =~ /^-----END PGP SIGNATURE-----/) {
+    if ($body =~ /^-----BEGIN PGP SIGNED MESSAGE-----/m and
+        $body =~ /^-----BEGIN PGP SIGNATURE-----/m and
+        $body =~ /^-----END PGP SIGNATURE-----/m) {
         $item->put_header("Content-Type:", 
             "application/pgp; format=text; x-action=sign");
     }

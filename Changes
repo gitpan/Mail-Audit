@@ -1,5 +1,9 @@
 Revision history for Perl extension Mail::Audit.
 
+1.9 - 
+    - Mail::ListDetector plugin from Michael Stevens (Woo, mstevens++)
+    - Documentation nit noted by Adrian Lattke
+
 1.8 - Mon Feb 12 16:27:00 2001
     - Some small fixes to proc2ma
     - put_header and ::PGP plugin as suggested by Zebee Johnstone

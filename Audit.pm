@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.8';
+$VERSION = '1.9';
 
 sub import {
     my $pkg = shift;
@@ -141,7 +141,7 @@ sub pipe {
 }
 
 sub header { $_[0]->{obj}->head->as_string() }
-sub put_header { $_[0]->{obj}->head->put(@_); }
+sub put_header { $_[0]->{obj}->head->add($_[1],$_[2]); }
 sub tidy { $_[0]->{obj}->tidy_body() }
 sub from { $_[0]->{obj}->head->get("From") }
 sub to { $_[0]->{obj}->head->get("To") }
@@ -236,12 +236,6 @@ bounce.
 This merely ignores the email, dropping it into the bit bucket for
 eternity.
 
-=item C<rblcheck([$timeout])>
-
-Attempts to check the mail headers with the Relay Blackhole List. 
-Returns false if the headers check out fine or the query times out,
-returns a reason if the mail is considered spam.
-
 =item C<pipe($program)>
 
 This opens a pipe to an external program and feeds the mail to it.
@@ -260,7 +254,7 @@ Inserts a new header into the mail message with the given value.
 
 =item C<body>
 
-Returns an array of lines in the body of the email.
+Returns a reference to an array of lines in the body of the email.
 
 =item C<header>
 
