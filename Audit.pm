@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.2';
+$VERSION = '1.3';
 
 sub _log {
     my ($priority, $what) = @_; 
@@ -20,7 +20,8 @@ sub _log {
 }
 
 sub new { 
-    my $self = bless({ obj => Mail::Internet->new(\*STDIN), @_ }, shift) 
+    my $class = shift;
+    my $self = bless({ @_, obj => Mail::Internet->new(\*STDIN) }, $class) ;
     if (exists $self->{loglevel}) { 
         $logging =1;
         $loglevel = $self->{loglevel};
@@ -32,9 +33,9 @@ sub new {
     if ($logging) {
         open LOG, ">>$logfile" or die $!;
         _log(1,"Logging started at ".scalar localtime);
-        _log(2,"Incoming mail from ".$mail->from);
-        _log(2,"To: ".$mail->to);
-        _log(2,"Subject: ".$mail->subject);
+        _log(2,"Incoming mail from ".$self->from);
+        _log(2,"To: ".$self->to);
+        _log(2,"Subject: ".$self->subject);
     }
     return $self;
 }
@@ -57,7 +58,7 @@ sub accept {
 		unless ($self->{obj}->head->get("Lines")) {
 			my $body = $self->{obj}->body;
 			my $num_lines = @$body;
-			$self->{obj}->head->add("Lines", $num_lines)
+			$self->{obj}->head->add("Lines", $num_lines);
             _log(4,"Adding Lines: $num_lines header");
 		}
 		unless (open TMP, ">$tmp_path") {
@@ -80,7 +81,7 @@ sub accept {
 		flock(FH, LOCK_EX) 
             or _log(1,"Couldn't get exclusive lock on $file");
 		print FH $self->{obj}->as_mbox_string;
-		flock(FH, LOCK_UN);
+		flock(FH, LOCK_UN)
             or _log(1,"Couldn't unlock on $file");
 		close FH;
 	}
@@ -103,7 +104,7 @@ sub pipe {
 	return $self->{pipe}->() if exists $self->{pipe};
     _log(1, "Piping to $file");
 	unless (open (PIPE, "|$file")) {
-        _log(0, "Couldn't open pipe $file: $!")
+        _log(0, "Couldn't open pipe $file: $!");
         $self->accept();
     }
 	$self->{obj}->print(\*PIPE);
