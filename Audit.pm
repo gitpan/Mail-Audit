@@ -3,12 +3,13 @@ package Mail::Audit;
 use strict;
 use Net::SMTP;
 use Mail::Internet;
+use Sys::Hostname;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Fcntl ':flock';
 use constant REJECTED => 100;
 use constant DELIVERED => 0;
 
-$VERSION = '1.0';
+$VERSION = '1.1';
 
 sub new { bless({ obj => Mail::Internet->new(\*STDIN), @_ }, shift) }
 
@@ -16,11 +17,33 @@ sub accept {
 	my $self = shift;
 	my $file = shift || "/var/spool/mail/".getpwuid($>);
 	return $self->{accept}->() if exists $self->{accept};
-	open(FH, ">>$file") or die $!;
-	flock(FH, LOCK_EX);
-	print FH $self->{obj}->as_mbox_string;
-	flock(FH, LOCK_UN);
-	close FH;
+
+	# is it a Maildir?
+	if (-d "$file/tmp" && -d "$file/new") {
+		my $msg_file = "/${\time}.$$.${\hostname}";
+		my $tmp_path = "$file/tmp/$msg_file";
+		my $new_path = "$file/new/$msg_file";
+
+		# since mutt won't add a lines tag to maildir messages,
+		# we'll add it here
+		unless ($self->{obj}->head->get("Lines")) {
+			my $body = $self->{obj}->body;
+			my $num_lines = @$body;
+			$self->{obj}->head->add("Lines", $num_lines)
+		}
+		open TMP, ">$tmp_path" or die $!;
+		print TMP $self->{obj}->as_mbox_string;
+		close TMP;
+
+		link $tmp_path, $new_path or die $!;
+		unlink $tmp_path;
+	} else { # it's an mbox
+		open(FH, ">>$file") or die $!;
+		flock(FH, LOCK_EX);
+		print FH $self->{obj}->as_mbox_string;
+		flock(FH, LOCK_UN);
+		close FH;
+	}
 	exit DELIVERED;
 }
 
@@ -47,8 +70,60 @@ sub to { $_[0]->{obj}->head->get("To") }
 sub subject { $_[0]->{obj}->head->get("Subject") }
 sub bcc { $_[0]->{obj}->head->get("Bcc") }
 sub cc { $_[0]->{obj}->head->get("Cc") }
+sub received { $_[0]->{obj}->head->get("Recieved") }
 sub resend {$_[0]->{obj}->smtpsend(To => $_[1]) }
 sub ignore { exit DELIVERED }
+
+sub rblcheck {
+my ($self, $timeout) = (shift, shift);
+my @recieved      = $self->received;
+my $rcvcount      = 0;
+
+# Catch ALRM signals so we can timeout DNS lookups
+sub myALRM { die "alarm\n" }
+$SIG{ALRM} = 'myALRM';
+&myALRM() if 0;              # make -w shut up
+for (@recieved) {
+    my $x = _checkit($rcvCount,$header);
+    return $x if $x;
+    $rcvCount++;  # Any further Received lines won't be the first.
+}
+return '';
+}
+
+sub checkit {
+    my $MAPS          = '.rbl.maps.vix.com';
+    my $OK            = '';
+    my $InvalidIP     = '1 Invalid IP address ';
+    my $RcvBlackHole  = '2 Received from RBL-registered spam site ';
+    my $RlyBlackHole  = '3 Relayed through RBL-registered spam site ';
+
+   my($relay,$rcvd) = @_;
+   my($IP,@IP) = $rcvd =~ /\[((\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))\]/;
+   my($name,$x);
+   # We can't complain if there's no IP address in this Received header.
+   return ($OK) unless defined $IP;
+   # Outer limits lose
+   return ($InvalidIP.$IP) if $IP eq '0.0.0.0';
+   return ($InvalidIP.$IP) if $IP eq '255.255.255.255';
+   # All @IP components must be >= 0 and <= 255
+   foreach $x ( @IP ) {
+      return ($InvalidIP.$IP) if $x > 255;
+      return ($InvalidIP.$IP) if $x =~ /^0\d/;    # no leading zeroes allowed
+   }
+   #
+   # Wrap the gethostbyname call with eval in case it times out.
+   #
+   eval {
+      alarm($timeout);
+      ($name) = gethostbyname(join('.',reverse @IP) . $MAPS);
+      alarm(0);
+   };
+   return($OK) if $@ =~ /^alarm/;  # Timed out.  Let it through.
+   return($OK) unless $name;       # If it's ok with MAPS, it's OK with us.
+   return($relay ? $RlyBlackHole.$IP : $RcvBlackHole.$IP);
+}
+
 
 1;
 __END__
@@ -108,6 +183,8 @@ You can choose to accept the mail into a mailbox by calling the
 C<accept> method; with no argument, this accepts to
 F</var/spool/mail/you>. The mailbox is opened append-write, then locked
 F<LOCK_EX>, the mail written and then the mailbox unlocked and closed.
+If Mail::Audit sees that you have a maildir style system, where
+F</var/spool/mail/you> is a directory, it'll deliver in maildir style.
 
 If this isn't how you want local delivery to happen, you'll need to
 override this method.

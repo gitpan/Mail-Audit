@@ -1,0 +1,91 @@
+NAME
+    Mail::Audit - Library for creating easy mail filters
+
+SYNOPSIS
+            use Mail::Audit;
+            my $mail = Mail::Audit->new;
+            $mail->pipe("listgate p5p") if ($mail->from =~ /perl5-porters/);
+            $mail->accept("perl) if ($mail->from =~ /perl/);
+            $mail->reject("We do not accept spam") if looks_like_spam($mail);
+            $mail->ignore if $mail->subject =~ /boring/i;
+            ...
+
+DESCRIPTION
+    procmail is nasty. It has a tortuous and complicated recipe format, and
+    I don't like it. I wanted something flexible whereby I could filter my
+    mail using Perl tests.
+
+    `Mail::Audit' was inspired by Tom Christiansen's audit_mail and
+    deliverlib programs. It allows a piece of email to be logged, examined,
+    accepted into a mailbox, filtered, resent elsewhere, rejected, and so
+    on. It's designed to allow you to easily create filter programs to stick
+    in a .forward file or similar.
+
+  CONSTRUCTOR
+
+    `new(%overrides)'
+        The constructor reads a mail message from `STDIN' and creates a
+        `Mail::Audit' object from it, to be manipulated by the following
+        methods.
+
+        You may optionally specify a hash with `accept', `reject' or `pipe'
+        keys and with subroutine references to override the methods with
+        those names. For example, people using MH as their mail handler will
+        want to override `accept' to reflect the local delivery method of
+        that mailer.
+
+  METHODS
+
+    `accept($where)'
+        You can choose to accept the mail into a mailbox by calling the
+        `accept' method; with no argument, this accepts to
+        /var/spool/mail/you. The mailbox is opened append-write, then locked
+        LOCK_EX, the mail written and then the mailbox unlocked and closed.
+        If Mail::Audit sees that you have a maildir style system, where
+        /var/spool/mail/you is a directory, it'll deliver in maildir style.
+
+        If this isn't how you want local delivery to happen, you'll need to
+        override this method.
+
+    `reject($reason)'
+        This rejects the email; it will be bounced back to the sender as
+        undeliverable. If a reason is given, this will be included in the
+        bounce.
+
+    `ignore'
+        This merely ignores the email, dropping it into the bit bucket for
+        eternity.
+
+    `pipe($program)'
+        This opens a pipe to an external program and feeds the mail to it.
+
+    `tidy'
+        Tidies up the email as per the Mail::Internet manpage
+
+    `resent($address)'
+        Bounces the email in its entirety to another address.
+
+  ATTRIBUTES
+
+    The following attributes correspond to fields in the mail:
+
+    *   from
+
+    *   to
+
+    *   subject
+
+    *   cc
+
+    *   bcc
+
+BUGS
+    Only tested on qmail and postfix, and I don't know how universally the
+    exit code 100 means reject.
+
+AUTHOR
+    Simon Cozens <simon@cpan.org>
+
+SEE ALSO
+    the Mail::Internet manpage, the Mail::SMTP manpage
+
