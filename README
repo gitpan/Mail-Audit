@@ -34,6 +34,12 @@ DESCRIPTION
         want to override `accept' to reflect the local delivery method of
         that mailer.
 
+        You may also specify `log =' $logfile> to write a debugging log; you
+        can set the verbosity of the log with the `loglevel' key, on a scale
+        of 1 to 4. If you specify a log level without a log file, logging
+        will be written to /tmp/you-audit.log where you is replaced by your
+        user name.
+
   METHODS
 
     `accept($where)'
@@ -56,11 +62,19 @@ DESCRIPTION
         This merely ignores the email, dropping it into the bit bucket for
         eternity.
 
+    `rblcheck([$timeout])'
+        Attempts to check the mail headers with the Relay Blackhole List.
+        Returns false if the headers check out fine or the query times out,
+        returns a reason if the mail is considered spam.
+
     `pipe($program)'
         This opens a pipe to an external program and feeds the mail to it.
 
     `tidy'
         Tidies up the email as per the Mail::Internet manpage
+
+    `get($header)'
+        Retrieves the named header from the mail message.
 
     `resent($address)'
         Bounces the email in its entirety to another address.
