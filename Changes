@@ -1,0 +1,9 @@
+Revision history for Perl extension Mail::Audit.
+
+1.00  Sat Mar 25 20:18:30 2000
+    - Well, it's been in production use since January, so I tidied it up
+	  and PAUSEd it.
+
+0.01  Thu Jan 13 19:43:51 2000
+	- original version; created by h2xs 1.19
+
