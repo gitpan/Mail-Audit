@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.4';
+$VERSION = '1.5';
 
 sub _log {
     my ($priority, $what) = @_; 

@@ -1,5 +1,8 @@
 Revision history for Perl extension Mail::Audit.
 
+1.5   Sun Jan  7 14:04:59 2001
+    - Include popread
+
 1.4   Thu Jan  4 19:07:22 2001
     - Long awaited release. There are probably still lots of bugs
       floating about, but I lost my old mailbox. Fixes include:
