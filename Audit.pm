@@ -12,7 +12,7 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.11';
+$VERSION = '2.0';
 
 sub import {
     my $pkg = shift;
@@ -94,12 +94,24 @@ sub accept {
 		flock(FH, LOCK_EX) 
             or _log(1,"Couldn't get exclusive lock on $file");
         seek FH, 0, 2;
-		if ((${$self->{obj}->body}[0] !~ /^From\s/) && (exists $ENV{UFLINE})) {
-		    _log(3,"Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
+                if (${$self->{obj}->body}[0] !~ /^From\s/) {
+                    if (exists $ENV{UFLINE}) {
+                        _log(3,"Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
 			print FH $ENV{UFLINE};
 			print FH $ENV{RPLINE};
 			print FH $ENV{DTLINE};
-		}
+                    } else {
+                        _log(3,"No mbox From line, making one up.");
+                        my $from = $self->{obj}->head()->get('Return-path') ||
+                            $self->{obj}->head()->get('Sender') ||
+                            $self->{obj}->head()->get('Reply-To') ||
+                            $self->{obj}->head()->get('From') ||
+                            '';
+                        chomp $from;
+                        ($from) = $from =~ /<([^>]+)/ if ($from =~ /<.*>/);
+                        print FH "From $from ", scalar(localtime), "\n";
+                    }
+                }
 		print FH $self->{obj}->as_mbox_string;
 		flock(FH, LOCK_UN)
             or _log(1,"Couldn't unlock on $file");
@@ -172,7 +184,7 @@ Mail::Audit - Library for creating easy mail filters
 	use Mail::Audit; # use Mail::Audit qw(...plugins...);
 	my $mail = Mail::Audit->new;
 	$mail->pipe("listgate p5p") if ($mail->from =~ /perl5-porters/);
-	$mail->accept("perl) if ($mail->from =~ /perl/);
+	$mail->accept("perl") if ($mail->from =~ /perl/);
 	$mail->reject("We do not accept spam") if looks_like_spam($mail);
 	$mail->ignore if $mail->subject =~ /boring/i;
 	...
@@ -319,4 +331,5 @@ Simon Cozens <simon@cpan.org>
 
 =head1 SEE ALSO
 
-L<Mail::Internet>, L<Mail::SMTP>
+L<Mail::Internet>, L<Mail::SMTP>, L<Mail::Audit::List>, L<Mail::Audit::PGP>,
+L<Mail::Audit::MAPS>, L<Mail::Audit::KillDups>, L<Mail::Audit::Razor>...

@@ -1,5 +1,13 @@
 Revision history for Perl extension Mail::Audit.
 
+2.0 - Mon Dec 10 19:51:17 GMT 2001
+    - Jonathan Trull made Mail::Audit work with Exchange.
+      Isn't that just gruesome?
+    - Fixed the following bugs:
+        http://rt.cpan.org/NoAuth/Bug.html?id=22
+        http://rt.cpan.org/NoAuth/Bug.html?id=60
+        http://rt.cpan.org/NoAuth/Bug.html?id=81
+
 1.11 - Thu May 17 00:16:10 2001
     - Header and body interfaces by Justin Mason
 

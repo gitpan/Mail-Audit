@@ -11,3 +11,4 @@ Audit/MAPS.pm
 Audit/KillDups.pm
 Audit/PGP.pm
 Audit/List.pm
+Audit/Razor.pm

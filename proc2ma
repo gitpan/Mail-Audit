@@ -1,7 +1,7 @@
 #! /usr/local/bin/perl
 my @grammar;
 
-our (%flags, $return);
+my (%flags, $return);
 use Parse::RecDescent;
 $Parse::RecDescent::skip = '[ \t]*';
 
