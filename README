@@ -1,8 +1,18 @@
 
 MAIL::AUDIT
 
-This is the 1.6 release of Mail::Audit, which includes both "popread"
-and "proc2ma"
+This is the 1.7 release of Mail::Audit, which includes both "popread"
+and "proc2ma".
+
+WHAT'S NEW IN THIS RELEASE?
+
+Now Mail::Audit supports a plug-in system; additional modules can
+provide methods for often-used recipes. For instance,
+Mail::Audit::KillDups checks for and surpresses duplicate messages.
+
+Oh, and a couple of fixes.
+
+OVERVIEW
 
 This is what Mail::Audit is all about:
 

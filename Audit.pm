@@ -12,7 +12,14 @@ my $loglevel=3;
 my $logging =0;
 my $logfile = "/tmp/".getpwuid($>)."-audit.log";
 
-$VERSION = '1.6';
+$VERSION = '1.7';
+
+sub import {
+    my $pkg = shift;
+    for (@_) {
+         eval "use $pkg"."::$_"; die $@ if $@;
+    }
+}
 
 sub _log {
     my ($priority, $what) = @_; 
@@ -86,6 +93,7 @@ sub accept {
         }
 		flock(FH, LOCK_EX) 
             or _log(1,"Couldn't get exclusive lock on $file");
+        seek FH, 0, 2;
 		if ((${$self->{obj}->body}[0] !~ /^From\s/) && (exists $ENV{UFLINE})) {
 		    _log(3,"Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
 			print FH $ENV{UFLINE};
@@ -213,7 +221,7 @@ Mail::Audit - Library for creating easy mail filters
 
 =head1 SYNOPSIS
 
-	use Mail::Audit;
+	use Mail::Audit; # use Mail::Audit qw(...plugins...);
 	my $mail = Mail::Audit->new;
 	$mail->pipe("listgate p5p") if ($mail->from =~ /perl5-porters/);
 	$mail->accept("perl) if ($mail->from =~ /perl/);
@@ -250,7 +258,7 @@ You may also specify C<< log => $logfile >> to write a debugging log; you
 can set the verbosity of the log with the C<loglevel> key, on a scale of
 1 to 4. If you specify a log level without a log file, logging will be
 written to F</tmp/you-audit.log> where F<you> is replaced by your user
-name. If you specify C<< noexit => 1>>, C<Mail::Audit> will not exit
+name. If you specify C<< noexit => 1 >>, C<Mail::Audit> will not exit
 after delivering the mail, but continue running your filter. 
 
 =back
@@ -344,7 +352,7 @@ bcc
 
 =head1 BUGS
 
-Probably loads.
+Fewer than before.
 
 =head1 AUTHOR
 
