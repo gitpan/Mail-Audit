@@ -5,7 +5,9 @@ WriteMakefile(
     'NAME'	=> 'Mail::Audit',
     'VERSION_FROM' => 'Audit.pm', # finds $VERSION
 	'PREREQ_PM' => {
+		'MIME::Entity' => 0,
 		'Mail::Internet' => 0,
+		'Mail::Mailer' => 0,
 		'Net::SMTP' => 0,
 		'Fcntl' => 0
 	}

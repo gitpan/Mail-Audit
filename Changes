@@ -1,5 +1,63 @@
 Revision history for Perl extension Mail::Audit.
 
+2.1 - Tue Jan 15 17:59:46 EST 2002
+    - Meng Weng Wong <mengwong@pobox.com> made some edits.
+
+  (1) ~username and strftime interpolation into accept() arguments.
+
+      $mail->accept("~/Mail/In/%Y%m%d");
+
+      260(accept): accepting to /home/matest/Mail/In/20020115
+
+  (2) multiple-argument accept() will deliver to multiple
+      maildirs using single-inode multiple-hardlink style.
+
+      $mail->accept("~/maildir1/", "~/maildir2/");
+
+      20020115-01:55:31 matest@dumbo:~% ll maildir?/*/*
+      -rw-------   2 matest   matest        416 Jan 15 01:55 maildir1/new/1011077720.13062_0.dumbo
+      -rw-------   2 matest   matest        416 Jan 15 01:55 maildir2/new/1011077720.13062_1.dumbo
+
+  (3) emergency mailbox support if none of the accept()s work.
+
+      $mail->accept("/etc/bogus");
+
+      296(accept): calling accept handler accept_to_mbox(/etc/bogus)
+      359(accept_to_mbox): Couldn't open /etc/bogus: Permission denied
+      319(accept): unable to write to /etc/bogus; wrote to emergency mailbox /var/spool/mail/matest.
+
+  (4) deferral back to mailqueue if emergency couldn't get delivered.
+
+      296(accept): calling accept handler accept_to_mbox(/etc/bogus)
+      359(accept_to_mbox): Couldn't open /etc/bogus: Permission denied
+      359(accept_to_mbox): Couldn't open /etc/emergency: Permission denied
+      320(accept): unable to write to /etc/bogus or to emergency mailbox /etc/emergency either; exiting EX_TEMPFAIL
+
+  (5) fixed the From header bug http://rt.cpan.org/NoAuth/Bug.html?id=118
+  (6) fixed the user method override bug with (@_) argument passing
+  (7) autocreation of parent and maildir cur/new/tmp dirs as necessary.
+
+      260(accept): accepting to /home/mengwong/tmp/blah/some/really/deep/directory/
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really/deep/directory/tmp doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really/deep/directory doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really/deep doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really/deep/directory/new doesn't exist, creating.
+      761(mkdir_p): /home/mengwong/tmp/blah/some/really/deep/directory/cur doesn't exist, creating.
+      492(accept_to_maildir): maildir: hardlinking to /home/mengwong/tmp/blah/some/really/deep/directory/new/1011077537.12691_3.dumbo
+      304(accept): delivered successfully to 1 destinations.
+
+  (8) support for MIME, with direct inheritance from
+      Mail::Internet and MIME::Entity (as appropriate) instead
+      of containment in ->{obj}.  added ->is_mime method.
+
+  (9) added "reply" method.  uses Mail::Mailer::sendmail.
+
+ (10) STDERR is directed to the logfile.
+
+ (11) added test infrastructure.
+
 2.0 - Mon Dec 10 19:51:17 GMT 2001
     - Jonathan Trull made Mail::Audit work with Exchange.
       Isn't that just gruesome?

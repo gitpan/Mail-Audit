@@ -11,20 +11,27 @@ sub fix_pgp_headers {
     my $item = shift;
     my $item_body = $item->body;
     my $body;
+    my $content_type = $item->get('Content-type');
 
-    $body .= $_ foreach (@$item_body);
+    # todo: update this to be MIME::Entity-compatible.
+    # only munge the headers as shown here if the message is non-mime, or if the message is singlepart plain/text
 
-    if ($body =~ /^-----BEGIN PGP MESSAGE-----/m and
-        $body =~ /^-----END PGP MESSAGE-----/m) {
-        $item->put_header("Content-Type:", 
-            "application/pgp; format=text; x-action=encrypt");
+    unless ($content_type =~ /^message\/|^multipart\/|^application\/pgp/) {
+       $body .= $_ foreach (@$item_body);
+
+       if ($body =~ /^-----BEGIN PGP MESSAGE-----/m and
+           $body =~ /^-----END PGP MESSAGE-----/m) {
+           $item->put_header("Content-Type:", 
+                      "application/pgp; format=text; x-action=encrypt");
+       }
+       if ($body =~ /^-----BEGIN PGP SIGNED MESSAGE-----/m and
+           $body =~ /^-----BEGIN PGP SIGNATURE-----/m and
+           $body =~ /^-----END PGP SIGNATURE-----/m) {
+           $item->put_header("Content-Type:", 
+                      "application/pgp; format=text; x-action=sign");
+       }
     }
-    if ($body =~ /^-----BEGIN PGP SIGNED MESSAGE-----/m and
-        $body =~ /^-----BEGIN PGP SIGNATURE-----/m and
-        $body =~ /^-----END PGP SIGNATURE-----/m) {
-        $item->put_header("Content-Type:", 
-            "application/pgp; format=text; x-action=sign");
-    }
+
     return 0;
 }
 
