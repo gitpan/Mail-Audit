@@ -27,7 +27,7 @@ sub killdups {
         if ($_ eq $mid) {
             _log(1, "Duplicate, ignoring");
             $self->ignore;
-            return 1; # Just in case.
+            return 2;
         }
 
         $current_pos = tell MSGID;
@@ -45,12 +45,12 @@ sub killdups {
     unless (seek MSGID, $end_of_ring, 0) {
         _log(1, "seek to position $end_of_ring failed: $!");
         close MSGID;
-        return 1;
+        return 3;
     }
 
     print MSGID "$mid\n\n";
     close MSGID;
-        
+
     return 0;
 }
 
@@ -94,7 +94,8 @@ ring buffer, where the end of the buffer will be delimited by two
 newline characters.  When the file size exceeds
 C<$Mail::Audit::KillDups::cache_bytes> bytes, the message id will be
 written at the beginning of the file.  Old message ids in the file
-will be overwritten.
+will be overwritten.  The default cache size is 10000 bytes, which is
+enough space for about 200 message-ids.
 
 =head1 AUTHOR
 

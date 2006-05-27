@@ -1,16 +1,17 @@
-Audit.pm
 proc2ma
 popread
 Changes
 MANIFEST
 Makefile.PL
-test.pl
+t/basic.t
 README
 FAQ
-Audit/MAPS.pm
-Audit/KillDups.pm
-Audit/PGP.pm
-Audit/List.pm
-Audit/Razor.pm
-Audit/MailInternet.pm
-Audit/MimeEntity.pm
+lib/Mail/Audit.pm
+lib/Mail/Audit/MAPS.pm
+lib/Mail/Audit/KillDups.pm
+lib/Mail/Audit/PGP.pm
+lib/Mail/Audit/List.pm
+lib/Mail/Audit/Razor.pm
+lib/Mail/Audit/MailInternet.pm
+lib/Mail/Audit/MimeEntity.pm
+META.yml                                 Module meta-data (added by MakeMaker)

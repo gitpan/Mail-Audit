@@ -42,7 +42,7 @@ sub _checkit {
     my $RlyBlackHole  = '3 Relayed through RBL-registered spam site ';
 
    my($relay,$rcvd,$timeout) = @_;
-   my($IP,@IP) = $rcvd =~ /\[((\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))\]/;
+   my($IP,@IP) = $rcvd =~ /((\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}))/;
    my($name,$x);
    # We can't complain if there's no IP address in this Received header.
    return ($OK) unless defined $IP;

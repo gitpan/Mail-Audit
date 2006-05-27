@@ -39,9 +39,9 @@ Mail::Audit::List - Mail::Audit plugin for automatic list delivery
 =head1 SYNOPSIS
 
     use Mail::Audit qw(List);
-	my $mail = Mail::Audit->new;
+    my $mail = Mail::Audit->new;
     ...
-        $mail->list_accept || $main->accept;
+    $mail->list_accept || $mail->accept;
 
 =head1 DESCRIPTION
 
