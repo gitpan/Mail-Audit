@@ -1,8 +1,8 @@
 package Mail::Audit::KillDups;
 use Mail::Audit;
 use vars qw(@VERSION $dupfile $cache_bytes);
-$VERSION = '1.9';
-$dupfile = ".msgid-cache";
+$VERSION     = '1.9';
+$dupfile     = ".msgid-cache";
 $cache_bytes = 10000;
 1;
 
@@ -11,49 +11,51 @@ use strict;
 use Fcntl;
 
 sub killdups {
-    my $self = shift;
-    my $mid = shift || $self->get("Message-Id");
-    my $end_of_ring = 0;
-    my $current_pos;
+  my $self        = shift;
+  my $mid         = shift || $self->get("Message-Id");
+  my $end_of_ring = 0;
+  my $current_pos;
 
-    unless (sysopen MSGID, $Mail::Audit::KillDups::dupfile, O_RDWR | O_CREAT) {
-        _log(1, "Error opening $Mail::Audit::KillDups::dupfile: $!");
-        return 1;
+  unless (sysopen MSGID, $Mail::Audit::KillDups::dupfile, O_RDWR | O_CREAT) {
+    _log(1, "Error opening $Mail::Audit::KillDups::dupfile: $!");
+    return 1;
+  }
+
+  chomp $mid;
+  while (<MSGID>) {
+    chomp;
+    if ($_ eq $mid) {
+      _log(1, "Duplicate, ignoring");
+      $self->ignore;
+      return 2;
     }
 
-    chomp $mid;
-    while (<MSGID>) {
-        chomp;
-        if ($_ eq $mid) {
-            _log(1, "Duplicate, ignoring");
-            $self->ignore;
-            return 2;
-        }
+    $current_pos = tell MSGID;
+    if ($current_pos > $Mail::Audit::KillDups::cache_bytes && $end_of_ring == 0)
+    {
 
-        $current_pos = tell MSGID;
-        if ($current_pos > $Mail::Audit::KillDups::cache_bytes && $end_of_ring == 0) {
-            # we've gotten too big, write this mid back at the top of the file
+      # we've gotten too big, write this mid back at the top of the file
 
-            last;
-        } elsif ($_ eq "" && $end_of_ring == 0 && $current_pos > 0) {
-            # Found the end of the ring buffer, so save position.
-            $end_of_ring = $current_pos - 1;
-        }
+      last;
+    } elsif ($_ eq "" && $end_of_ring == 0 && $current_pos > 0) {
+
+      # Found the end of the ring buffer, so save position.
+      $end_of_ring = $current_pos - 1;
     }
+  }
 
-    # Didn't find mid, so write it to the end of the ring buffer
-    unless (seek MSGID, $end_of_ring, 0) {
-        _log(1, "seek to position $end_of_ring failed: $!");
-        close MSGID;
-        return 3;
-    }
-
-    print MSGID "$mid\n\n";
+  # Didn't find mid, so write it to the end of the ring buffer
+  unless (seek MSGID, $end_of_ring, 0) {
+    _log(1, "seek to position $end_of_ring failed: $!");
     close MSGID;
+    return 3;
+  }
 
-    return 0;
+  print MSGID "$mid\n\n";
+  close MSGID;
+
+  return 0;
 }
-
 
 1;
 __END__

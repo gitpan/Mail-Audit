@@ -11,60 +11,54 @@ use Razor::Client;
 use Razor::Agent;
 use Razor::String qw(hash);
 
-sub is_spam
-{
-    my ($self) = @_;
+sub is_spam {
+  my ($self) = @_;
 
-    my @message = (split("\n", $self->header), "", "", @{$self->body}); 
+  my @message = (split("\n", $self->header), "", "", @{ $self->body });
 
-    my $razor = new Razor::Agent($Mail::Audit::Razor::config || "$ENV{HOME}/razor.conf");
-    my $response = $razor->check(sigs => [hash(\@message)])
-	|| $razor->raise_error();
+  my $razor
+    = new Razor::Agent($Mail::Audit::Razor::config || "$ENV{HOME}/razor.conf");
+  my $response = $razor->check(sigs => [ hash(\@message) ])
+    || $razor->raise_error();
 
-    return $response->[0];
+  return $response->[0];
 }
 
-sub spam_handle
-{
-    my ($self, $data, $action) = @_;
+sub spam_handle {
+  my ($self, $data, $action) = @_;
 
-    if ($self->is_spam)
-    {
-	$self->accept($data)
-	    if ($action eq "accept");
-	$self->ignore()
-	    if ($action eq "ignore");
-	$self->reject($data)
-	    if ($action eq "reject");
-	$self->pipe($data)
-	    if ($action eq "pipe");
+  if ($self->is_spam) {
+    $self->accept($data)
+      if ($action eq "accept");
+    $self->ignore()
+      if ($action eq "ignore");
+    $self->reject($data)
+      if ($action eq "reject");
+    $self->pipe($data)
+      if ($action eq "pipe");
 
-	return 1;
-    }
+    return 1;
+  }
 
-    return 0;
+  return 0;
 }
 
-sub spam_accept
-{
-    &spam_handle(@_[0,1], "accept");
+sub spam_accept {
+  &spam_handle(@_[ 0, 1 ], "accept");
 }
 
-sub spam_ignore
-{
-    &spam_handle(@_[0,1], "ignore");
+sub spam_ignore {
+  &spam_handle(@_[ 0, 1 ], "ignore");
 }
 
-sub spam_reject
-{
-    &spam_handle(@_[0,1], "reject");
+sub spam_reject {
+  &spam_handle(@_[ 0, 1 ], "reject");
 }
 
-sub spam_pipe
-{
-    &spam_handle(@_[0,1], "pipe");
+sub spam_pipe {
+  &spam_handle(@_[ 0, 1 ], "pipe");
 }
-	
+
 1;
 __END__
 
