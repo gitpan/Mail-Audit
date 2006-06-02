@@ -1,6 +1,12 @@
 package Mail::Audit::MimeEntity;
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 21840 2006-05-30T14:21:01.382064Z rjbs  $
+=head1 NAME
+
+Mail::Audit::MailInternet - a Mail::Internet-based Mail::Audit object
+
+=cut
+
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22026 2006-06-02T02:13:29.371409Z rjbs  $
 
 use strict;
 use File::Path;
@@ -19,7 +25,7 @@ my $parser;
 
 my @to_rmdir;
 
-sub autotype_new {
+sub _autotype_new {
   my $class        = shift;
   my $mailinternet = shift;
   my $options      = shift;
@@ -82,6 +88,14 @@ sub autotype_new {
   bless($self, $class);
   return ($self, 0);
 }
+
+=head2 parser
+
+This method returns the message's own MIME::Parser.
+
+This method is B<very> likely to go away.
+
+=cut
 
 sub parser { $parser ||= MIME::Parser->new(); }
 

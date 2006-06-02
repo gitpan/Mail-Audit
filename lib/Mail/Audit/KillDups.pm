@@ -99,6 +99,8 @@ written at the beginning of the file.  Old message ids in the file
 will be overwritten.  The default cache size is 10000 bytes, which is
 enough space for about 200 message-ids.
 
+=back
+
 =head1 AUTHOR
 
 Simon Cozens <simon@cpan.org>

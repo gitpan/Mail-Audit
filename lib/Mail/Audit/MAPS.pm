@@ -106,6 +106,8 @@ Attempts to check the mail headers with the Relay Blackhole List.
 Returns false if the headers check out fine or the query times out,
 returns a reason if the mail is considered spam.
 
+=back
+
 =head1 AUTHOR
 
 Simon Cozens <simon@cpan.org>

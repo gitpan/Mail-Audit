@@ -106,11 +106,17 @@ Calls C<pipe> and returns 1 if the message is spam, otherwise 0.
 
 Returns 1 if the message is spam, 0 if it is not.
 
+=back
+
 =head2 VARIABLES
+
+=over
 
 =item C<$Mail::Audit::Razor::config>
 
 The path to your razor config file.  The default is C<$ENV{HOME}/razor.conf>.
+
+=back
 
 =head1 AUTHOR
 

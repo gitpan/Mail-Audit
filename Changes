@@ -1,5 +1,12 @@
 Revision history for Perl extension Mail::Audit.
 
+2.200_03 2006-06-01
+         our first meaningful tests!
+         also some POD tests
+         POD cleaned up
+         many undocumented modules given a _-prefix
+         removed undocumented, bizarre inreplyto_and_references method
+
 2.200_02 2006-05-30
          various code cleanup, including perltidy
          extra options, previously an optional hashref passed as first arg,

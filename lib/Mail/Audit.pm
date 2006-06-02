@@ -1,22 +1,19 @@
 package Mail::Audit;
 use strict;
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 21904 2006-05-31T01:56:54.893268Z rjbs  $
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22026 2006-06-02T02:13:29.371409Z rjbs  $
 
 my $logging;
 my $loglevel = 3;
 my $logfile  = "/tmp/" . getpwuid($>) . "-audit.log";
 
-# ----------------------------------------------------------
-# no user-modifiable parts below this line.
-# ----------------------------------------------------------
-
 use Carp ();
-use File::Basename;
-use Mail::Audit::MailInternet;
-use Mail::Internet;
-use Sys::Hostname;
-(my $HOSTNAME = hostname) =~ s/\..*//;
+use File::Basename ();
+use Mail::Audit::MailInternet ();
+use Mail::Internet ();
+
+use Sys::Hostname ();
+(my $HOSTNAME = Sys::Hostname::hostname) =~ s/\..*//;
 
 use Fcntl ':flock';
 
@@ -44,7 +41,7 @@ use constant DEFERRED  => EX_TEMPFAIL;
 use constant REJECTED  => 100;
 use constant DELIVERED => 0;
 
-$Mail::Audit::VERSION = '2.200_02';
+$Mail::Audit::VERSION = '2.200_03';
 
 =head1 NAME
 
@@ -93,7 +90,7 @@ sub import {
 }
 
 sub _log {
-  my ($priority, $what) = @_;
+  my ($self, $priority, $what) = @_;
   return if $loglevel < $priority;
   chomp $what;
   chomp $what;
@@ -109,9 +106,10 @@ sub _get_opt {
   my $opt;
 
   if (ref $arg->[0] eq 'HASH') {
-    Carp::carp "prepending arguments is deprecated; append them instead";
+    Carp::carp "prepending arguments is deprecated; append them instead"
+      unless @$arg == 1;
     $opt = shift @$arg;
-  } elsif (ref $_[-1] eq 'HASH') {
+  } elsif (ref $arg->[-1] eq 'HASH') {
     $opt = pop @$arg;
   }
 
@@ -195,15 +193,15 @@ sub new {
     open LOG, ">>$logfile" or open LOG, ">>/dev/null";
   }
 
-  _log(1, "------------------------------ new run at " . localtime);
+  $class->_log(1, "------------------------------ new run at " . localtime);
   my $self = Mail::Audit::MailInternet->new(
     (exists $opts{data} ? $opts{data} : \*STDIN),
     Modify => 0
   );
 
-  _log(2, "   From: " . ($self->get("from")));
-  _log(2, "     To: " . ($self->get("to")));
-  _log(2, "Subject: " . ($self->get("subject")));
+  $self->_log(2, "   From: " . ($self->get("from")));
+  $self->_log(2, "     To: " . ($self->get("to")));
+  $self->_log(2, "Subject: " . ($self->get("subject")));
 
   # do we have a MIME-Version header?
   # if so,  we subclass MIME::Entity.
@@ -211,19 +209,20 @@ sub new {
   # into the West.
   if ($opts{alwaysmime} or $mime_test->($self)) {
     unless ($opts{nomime}) {
-      _log(3,
+      $self->_log(3,
         "message is MIME.  MIME-Version is " . ($self->get("MIME-Version"))
       );
       eval {
         require Mail::Audit::MimeEntity;
         import Mail::Audit::MimeEntity;
       };
+      die "$@" if $@;
       my $error;
       ($self, $error)
-        = Mail::Audit::MimeEntity->autotype_new($self, $opts{mimeoptions});
-      _log(0, $error) if $error;
+        = Mail::Audit::MimeEntity->_autotype_new($self, $opts{mimeoptions});
+      $self->_log(0, $error) if $error;
     } else {
-      _log(3, "message is MIME, but 'nomime' option was set.");
+      $self->_log(3, "message is MIME, but 'nomime' option was set.");
     }
   }
 
@@ -309,11 +308,12 @@ this method.
 
 =cut
 
-sub nifty_interpolate {
+sub _nifty_interpolate {
   # perform ~user and %Y%m%d strftime interpolation
   my $self       = shift;
   my $local_opts = $self->_get_opt(\@_);
   my @out        = @_;
+
   my @localtime  = localtime;
   if (
     (
@@ -345,14 +345,15 @@ sub accept {
 
   my $local_opts = $self->_get_opt(\@_);
 
-  my @files = $self->nifty_interpolate($local_opts, @_);
+  my @files = $self->_nifty_interpolate(@_, $local_opts);
+
   unless (@files) {
     @files = $self->{_default_mbox};
   }
 
   my @actually_saved_to_files = ();
 
-  _log(2, "accepting to @files");
+  $self->_log(2, "accepting to @files");
 
   # from man procmailrc:
   #   If  it  is  a  directory,  the mail will be delivered to a newly created,
@@ -380,28 +381,28 @@ sub accept {
   );
 
   for my $file (@files) {
-    my $mailbox_type = $self->mailbox_type($file);
+    my $mailbox_type = $self->_mailbox_type($file);
     push @{ $accept_types{$mailbox_type} }, $file;
-    _log(3, "$file is of type $mailbox_type");
+    $self->_log(3, "$file is of type $mailbox_type");
   }
 
   foreach my $accept_type (sort keys %accept_types) {
     next if not @{ $accept_types{$accept_type} };
-    my $accept_handler = "accept_to_$accept_type";
-    _log(3,
+    my $accept_handler = "_accept_to_$accept_type";
+    $self->_log(3,
       "calling accept handler $accept_handler(@{$accept_types{$accept_type}})");
     push @actually_saved_to_files,
-      $self->$accept_handler($local_opts, @{ $accept_types{$accept_type} });
+      $self->$accept_handler(@{ $accept_types{$accept_type} }, $local_opts);
   }
 
   if ((my $success_count = @actually_saved_to_files) > 0) {
-    _log(3,
+    $self->_log(3,
       "delivered successfully to $success_count destinations at " . localtime
     );
     unless ((exists $local_opts->{noexit} and $local_opts->{noexit})
-      or $self->{_audit_opts}->{noexit})
-    {
-      _log(2, "Exiting with status DELIVERED = " . DELIVERED);
+      or $self->{_audit_opts}->{noexit}
+    ) {
+      $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
       exit DELIVERED;
     }
   } else {  # nothing got delivered, take emergency action.
@@ -415,7 +416,7 @@ sub accept {
 
     my $emergency = $self->{_audit_opts}->{emergency};
     if (not defined $emergency) {
-      _log(0,
+      $self->_log(0,
         "unable to write to @files and no emergency mailbox defined; exiting EX_TEMPFAIL"
       );
       $! = DEFERRED;
@@ -423,26 +424,26 @@ sub accept {
     } else {
       if (grep ($emergency eq $_, @files)) {  # already tried that mailbox
         if (@files == 1) {
-          _log(0, "unable to write to @files; exiting EX_TEMPFAIL");
+          $self->_log(0, "unable to write to @files; exiting EX_TEMPFAIL");
         } else {
-          _log(0,
+          $self->_log(0,
             "unable to write to any of (@files), which includes the emergency mailbox; exiting EX_TEMPFAIL"
           );
         }
         $! = DEFERRED;
         die("unable to write to @files");
       } else {
-        my $accept_type    = $self->mailbox_type($emergency);
-        my $accept_handler = "accept_to_$accept_type";
+        my $accept_type    = $self->_mailbox_type($emergency);
+        my $accept_handler = "_accept_to_$accept_type";
         @actually_saved_to_files = $self->$accept_handler($emergency);
         if (not @actually_saved_to_files) {
-          _log(0,
+          $self->_log(0,
             "unable to write to @files or to emergency mailbox $emergency either; exiting EX_TEMPFAIL"
           );
           $! = DEFERRED;
           die("unable to write to @files");
         } else {
-          _log(0,
+          $self->_log(0,
             "unable to write to @files; wrote to emergency mailbox $emergency."
           );
         }
@@ -452,12 +453,12 @@ sub accept {
   return @actually_saved_to_files;
 }
 
-sub mailbox_type {
+sub _mailbox_type {
   my $self = shift;
   my $file = shift;
 
-  if ($file =~ /\/$/)   { return "maildir" }
-  if ($file =~ /\/\.$/) { return "mh" }
+  if ($file =~ m{/$})   { return "maildir" }
+  if ($file =~ m{/\.$}) { return "mh" }
   if (-d $file) {
     if (-d "$file/tmp" and -d "$file/new") { return "maildir" }
     if (exists($self->{_audit_opts}->{ASSUME_MSGPREFIX})) {
@@ -478,26 +479,26 @@ sub mailbox_type {
   return 'mbox';
 }
 
-sub accept_to_mbox {
+sub _accept_to_mbox {
   my $self       = shift;
   my @saved_to   = ();
   my $local_opts = $self->_get_opt(\@_);
 
   foreach my $file (@_) {
     # auto-create the parent dir.
-    if (my $mkdir_error = mkdir_p(dirname($file))) {
-      _log(0, $mkdir_error);
+    if (my $mkdir_error = _mkdir_p(File::Basename::dirname($file))) {
+      $self->_log(0, $mkdir_error);
       next;
     }
-    my $error = $self->write_message($file,
+    my $error = $self->_write_message($file,
       { need_lock => 1, need_from => 1, extra_newline => 1 });
     if (not $error) { push @saved_to, $file; }
-    else { _log(1, $error); }
+    else { $self->_log(1, $error); }
   }
   return @saved_to;
 }
 
-sub write_message {
+sub _write_message {
   my $self       = shift;
   my $file       = shift;
   my $write_opts = shift || {};
@@ -507,27 +508,27 @@ sub write_message {
   $write_opts->{extra_newline} = 0
     if not defined $write_opts->{extra_newline};
 
-  _log(3, "writing to $file; options @{[%$write_opts]}");
+  $self->_log(3, "writing to $file; options @{[%$write_opts]}");
 
   unless (open(FH, ">>$file")) { return "Couldn't open $file: $!"; }
 
   if ($write_opts->{need_lock}) {
-    my $lock_error = audit_get_lock(\*FH, $file);
+    my $lock_error = _audit_get_lock(\*FH, $file);
     return $lock_error if $lock_error;
   }
   seek FH, 0, 2;
 
   if (not $write_opts->{need_from} and $self->head->header->[0] =~ /^From\s/)
   {
-    _log(3, "mbox From line found, stripping because we're maildir");
+    $self->_log(3, "mbox From line found, stripping because we're maildir");
     $self->delete_header("From ");
     $self->unescape_from();
   }
 
   if ($write_opts->{need_from} and $self->head->header->[0] !~ /^From\s/) {
-    _log(3, "No mbox From line, making one up.");
+    $self->_log(3, "No mbox From line, making one up.");
     if (exists $ENV{UFLINE}) {
-      _log(3,
+      $self->_log(3,
         "Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
       print FH $ENV{UFLINE};
       print FH $ENV{RPLINE};
@@ -551,7 +552,7 @@ sub write_message {
     }
   }
 
-  _log(4, "printing self as mbox string.");
+  $self->_log(4, "printing self as mbox string.");
   if ($write_opts->{need_from}) {
     my $content = $self->as_string;
     $content =~ s/\nFrom /\n>From /g;
@@ -568,7 +569,7 @@ sub write_message {
   }
 
   close FH or return "Couldn't close $file after writing: $!";
-  _log(4, "returning success.");
+  $self->_log(4, "returning success.");
   return 0;  # success
 }
 
@@ -576,21 +577,21 @@ sub write_message {
 # NOT IMPLEMENTED
 # ----------------------------------------------------------
 
-sub accept_to_mh {
+sub _accept_to_mh {
   my $self       = shift;
   my @saved_to   = ();
   my $local_opts = $self->_get_opt(\@_);
 
-  die "accept_to_mh not implemented";
+  die "_accept_to_mh not implemented";
   return @saved_to;
 }
 
-sub accept_to_msgprefix {
+sub _accept_to_msgprefix {
   my $self       = shift;
   my @saved_to   = ();
   my $local_opts = $self->_get_opt(\@_);
 
-  die "accept_to_msgprefix not implemented";
+  die "_accept_to_msgprefix not implemented";
   return @saved_to;
 }
 
@@ -599,7 +600,7 @@ sub accept_to_msgprefix {
 my $maildir_time    = 0;
 my $maildir_counter = 0;
 
-sub accept_to_maildir {
+sub _accept_to_maildir {
   my $self       = shift;
   my @saved_to   = ();
   my $local_opts = $self->_get_opt(\@_);
@@ -608,7 +609,7 @@ sub accept_to_maildir {
     ? $local_opts->{one_for_all}
     : $self->{_audit_opts}->{one_for_all};
 
-  _log(3, "will write to @_");
+  $self->_log(3, "will write to @_");
 
   # since mutt won't add a lines tag to maildir messages, we'll add it here
   # XXX: Why the nuts is this here?  This should be another method, or a
@@ -616,7 +617,7 @@ sub accept_to_maildir {
   unless (length $self->get("Lines")) {
     my $num_lines = @{ $self->body };
     $self->head->add("Lines", $num_lines);
-    _log(4, "Adding Lines: $num_lines header");
+    $self->_log(4, "Adding Lines: $num_lines header");
   }
 
   if ($maildir_time != time) {
@@ -645,27 +646,27 @@ sub accept_to_maildir {
     } while (-e "$tmpdir/$msg_file");
 
     $tmp_path = "$tmpdir/$msg_file";
-    _log(3, "writing to $tmp_path");
+    $self->_log(3, "writing to $tmp_path");
 
     # auto-create the maildir.
     if (
-      my $mkdir_error = mkdir_p(
+      my $mkdir_error = _mkdir_p(
         $local_opts->{one_for_all}
         ? ($file)
         : map { "$file/$_" } qw(tmp new cur)
       )
     ) {
-      _log(0, $mkdir_error);
+      $self->_log(0, $mkdir_error);
       next;
     }
 
     my $error
-      = $self->write_message($tmp_path, { need_from => 0, need_lock => 0 });
+      = $self->_write_message($tmp_path, { need_from => 0, need_lock => 0 });
 
     # only write to the first writeable maildir
     last unless $error;
 
-    _log(1, $error);
+    $self->_log(1, $error);
     unlink $tmp_path;
     $tmp_path = undef;
   }
@@ -690,18 +691,18 @@ sub accept_to_maildir {
 
     # auto-create the maildir.
     if (
-      my $mkdir_error = mkdir_p(
+      my $mkdir_error = _mkdir_p(
         $local_opts->{one_for_all}
         ? ($file)
         : map { "$file/$_" } qw(tmp new cur)
       )
     ) {
-      _log(0, $mkdir_error);
+      $self->_log(0, $mkdir_error);
       next;
     }
 
     my $new_path = "$newdir/$msg_file";
-    _log(3, "maildir: hardlinking to $new_path");
+    $self->_log(3, "maildir: hardlinking to $new_path");
 
     if (link $tmp_path, $new_path) {
       push @saved_to, $new_path;
@@ -709,18 +710,18 @@ sub accept_to_maildir {
       require Errno;
       if ($! == Errno::EXDEV()) {
         # Invalid cross-device link, see /usr/**/include/*/errno.h
-        _log(0, "Couldn't link $tmp_path to $new_path: $!");
-        _log(0, "attempting direct maildir delivery to $new_path...");
-        push @saved_to, $self->accept_to_maildir($file);
+        $self->_log(0, "Couldn't link $tmp_path to $new_path: $!");
+        $self->_log(0, "attempting direct maildir delivery to $new_path...");
+        push @saved_to, $self->_accept_to_maildir($file);
         next;
       } else {
-        _log(0, "Couldn't link $tmp_path to $new_path: $!");
+        $self->_log(0, "Couldn't link $tmp_path to $new_path: $!");
       }
     }
   }
 
   # unlink the temp file
-  unlink $tmp_path or _log(1, "Couldn't unlink $tmp_path: $!");
+  unlink $tmp_path or $self->_log(1, "Couldn't unlink $tmp_path: $!");
   return @saved_to;
 }
 
@@ -740,7 +741,7 @@ sub reject {
   return $self->{_audit_opts}->{reject}->(@_)
     if exists $self->{_audit_opts}->{reject};
 
-  _log(1, "Rejecting with exitcode " . REJECTED . " and reason @_");
+  $self->_log(1, "Rejecting with exitcode " . REJECTED . " and reason @_");
 
   # we say this instead of
   #    print STDERR @_; exit REJECTED;
@@ -781,7 +782,7 @@ sub resend {
     (exists $local_opts->{noexit} and $local_opts->{noexit})
     or $self->{_audit_opts}->{noexit}
   ) {
-    _log(2, "Exiting with status DELIVERED = " . DELIVERED);
+    $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
     exit DELIVERED;
   }
 }
@@ -804,22 +805,22 @@ sub pipe {
   my $local_opts = $self->_get_opt(\@_);
   my ($command) = @_;
 
-  my ($file) = $self->nifty_interpolate($local_opts, $command);
-  _log(1, "Piping to $file");
+  my ($file) = $self->_nifty_interpolate($command, $local_opts);
+  $self->_log(1, "Piping to $file");
 
   unless (open(PIPE, "|$file")) {
-    _log(0, "Couldn't open pipe $file: $!");
+    $self->_log(0, "Couldn't open pipe $file: $!");
     $self->accept();
   }
 
   $self->print(\*PIPE);
   close PIPE;
-  _log(3, "Pipe closed with status $?");
+  $self->_log(3, "Pipe closed with status $?");
 
   unless ((exists $local_opts->{noexit} and $local_opts->{noexit})
     or $self->{_audit_opts}->{noexit}
   ) {
-    _log(2, "Exiting with status DELIVERED = " . DELIVERED);
+    $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
     exit DELIVERED;
   }
 }
@@ -837,7 +838,7 @@ This is a final delivery method.  Set C<noexit> if you want to keep going.
 
 sub ignore {
   my $self = shift;
-  _log(1, "Ignoring");
+  $self->_log(1, "Ignoring");
 
   my $local_opts = $self->_get_opt(\@_);
 
@@ -872,7 +873,7 @@ after completion.
 
 =cut
 
-sub reply_recipient {
+sub _reply_recipient {
   my $self = shift;
 
   # todo: clean this up with Mail::Address.  right now if From: <> we barf.
@@ -895,7 +896,7 @@ sub reply {
     unless (defined $reply_opts{even_if_from_daemon}
       and $reply_opts{even_if_from_daemon}
     ) {
-      _log(2, "message is ^FROM_DAEMON, skipping reply");
+      $self->_log(2, "message is ^FROM_DAEMON, skipping reply");
       return "(^FROM_DAEMON, no reply)";
     }
   }
@@ -908,7 +909,7 @@ sub reply {
 
   require Mail::Mailer;
 
-  my $rcpt = ($reply_opts{"to"} || $self->reply_recipient);
+  my $rcpt = ($reply_opts{"to"} || $self->_reply_recipient);
 
   return if not $rcpt;
 
@@ -964,7 +965,7 @@ sub reply {
     : "Your message has been received.\n");
   $reply->close;  # complete the message and send it
 
-  _log(1, "reply sent to $rcpt");
+  $self->_log(1, "reply sent to $rcpt");
   return $rcpt;
 }
 
@@ -972,13 +973,19 @@ sub reply {
 
 =head1 HEADER MANAGEMENT METHODS
 
+=over
+
 =item get_header
+
+=item get
 
   my $header = $mail->get($header);
 
 Retrieves the named header from the mail message.
 
 =item add_header
+
+=item put_header
 
   $mail->add_header($header => $value);
 
@@ -997,7 +1004,11 @@ Removes the old header, adds a new one.
 
 Guess.
 
+=back
+
 =head1 MISCELLANEOUS METHODS
+
+=over
 
 =item tidy
 
@@ -1039,7 +1050,7 @@ sub noexit {
   $_[0]->{_audit_opts}->{noexit} = $_[1] ? 1 : 0;
 }
 
-# ----------------------------------------------------------
+=back
 
 =head1 ATTRIBUTE METHODS
 
@@ -1057,6 +1068,8 @@ The following attributes correspond to fields in the mail:
 
 =item * bcc
 
+=item * received
+
 =item * body
 
 Returns a reference to an array of lines in the body of the email.
@@ -1067,6 +1080,8 @@ Returns the header as a single string.
 
 =item * is_mime
 
+=item * ismime
+
 Am I a MIME message?  If so, MIME::Entity methods apply.  Otherwise,
 Mail::Internet methods apply.
 
@@ -1076,7 +1091,7 @@ Am I from a mailer-daemon?  See L<procmailrc>.  This method returns the part of
 the header that matched.  This method's implementation of the pattern is not
 identical to F<procmail>'s.
 
-=item C<from_daemon>
+=item * from_daemon
 
 Am I from any sort of daemon?  See L<procmailrc>.  This method returns the part
 of the header that matched.  This method's implementation of the pattern is not
@@ -1167,49 +1182,33 @@ sub __from_mailer {
 # utility functions
 # ----------------------------------------------------------
 
-sub audit_get_lock {
+sub _audit_get_lock {
   my $FH   = shift;
   my $file = shift;
-  _log(4, "  attempting to lock  file $file");
+  __PACKAGE__->_log(4, "  attempting to lock  file $file");
   for (1 .. 10) {
     if (flock($FH, LOCK_EX)) {
-      _log(4, "  successfully locked file $file");
+      __PACKAGE__->_log(4, "  successfully locked file $file");
       return;
     } else {
       sleep $_ and next;
     }
   }
-  _log(1, my $errstr = "Couldn't get exclusive lock on $file");
+  __PACKAGE__->_log(1, my $errstr = "Couldn't get exclusive lock on $file");
   return $errstr;
 }
 
-sub mkdir_p {  # mkdir -p (also create parents if necessary)
+sub _mkdir_p {  # mkdir -p (also create parents if necessary)
   return if not @_;
   return if not length $_[0];
   foreach (@_) {
     next if -d $_;
     chop while m{/$};
-    _log(4, "$_ doesn't exist, creating.");
-    if (my $error = mkdir_p(dirname($_))) { return $error }
+    __PACKAGE__->_log(4, "$_ doesn't exist, creating.");
+    if (my $error = _mkdir_p(File::Basename::dirname($_))) { return $error }
     mkdir($_, 0777) or return "unable to mkdir $_: $!";
   }
   return;
-}
-
-sub references_and_inreplyto {
-  my $self       = shift;
-  # headers useful in a reply
-  # my ($references, $in_reply_to) = $message->references_and_inreplyto
-
-  my @references = (
-    grep { /^<.*>$/ } (
-      split(' ', $self->get("References")), $self->get("Message-ID"),
-      $self->get("In-Reply-To"),
-    )
-  );
-  my $references  = "@references"            || undef;
-  my $in_reply_to = $self->get("Message-Id") || undef;
-  return ($references, $in_reply_to);
 }
 
 =head1 LICENSE

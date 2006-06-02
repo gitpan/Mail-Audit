@@ -1,6 +1,12 @@
 package Mail::Audit::MailInternet;
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MailInternet.pm 21840 2006-05-30T14:21:01.382064Z rjbs  $
+=head1 NAME
+
+Mail::Audit::MailInternet - a Mail::Internet-based Mail::Audit object
+
+=cut
+
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MailInternet.pm 22026 2006-06-02T02:13:29.371409Z rjbs  $
 
 use strict;
 use Mail::Internet;
@@ -9,7 +15,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 
 $VERSION = '2.0';
 
-sub autotype_new {
+sub _autotype_new {
   my $class = shift;
   my $self  = shift;
   bless($self, $class);

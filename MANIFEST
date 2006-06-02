@@ -25,3 +25,6 @@ proc2ma
 README
 t/basic.t
 t/dan-root.t
+t/messages/simple.msg
+t/pod.t
+t/pod-coverage.t

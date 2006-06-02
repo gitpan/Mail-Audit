@@ -8,6 +8,12 @@ $subject = "Vacation autoresponse";
 $replyto = $from = "<>";
 1;
 
+=head1 NAME
+
+Mail::Audit::Vacation - perform vacation autoresponding
+
+=cut
+
 package Mail::Audit;
 use strict;
 

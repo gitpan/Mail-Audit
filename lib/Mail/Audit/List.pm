@@ -69,6 +69,8 @@ list, or 0 otherwise.
 The recipe given above should be able to replace a great number of
 special-casing recipes.
 
+=back
+
 =head1 AUTHOR
 
 Michael Stevens <michael@etla.org>

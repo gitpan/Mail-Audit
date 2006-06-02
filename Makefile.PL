@@ -13,6 +13,7 @@ version_from  ('lib/Mail/Audit.pm');
 requires      ('Fcntl'          => 0);
 requires      ('MIME::Entity'   => 0);
 requires      ('Mail::Internet' => 0);
+requires      ('Mail::ListDetector' => 0);
 requires      ('Mail::Mailer'   => 0);
 requires      ('Net::SMTP'      => 0);
 
