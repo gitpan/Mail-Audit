@@ -6,7 +6,7 @@ Mail::Audit::MailInternet - a Mail::Internet-based Mail::Audit object
 
 =cut
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22026 2006-06-02T02:13:29.371409Z rjbs  $
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22073 2006-06-04T19:51:42.734352Z rjbs  $
 
 use strict;
 use File::Path;
@@ -37,7 +37,7 @@ sub _autotype_new {
   if ($options->{output_to_core}) {
     $parser->output_to_core($options->{'output_to_core'});
   } else {
-    Mail::Audit::_log(3, "doing mkdir $MIME_PARSER_TMPDIR");
+    $mailinternet->_log(3, "doing mkdir $MIME_PARSER_TMPDIR");
     mkdir($MIME_PARSER_TMPDIR, 0777);
     $MIME_PARSER_TMPDIR = "/tmp" unless -d $MIME_PARSER_TMPDIR;
     $parser->output_under($MIME_PARSER_TMPDIR);
@@ -82,7 +82,7 @@ sub _autotype_new {
   unless ($options->{output_to_core}) {
     my $output_dir = $parser->filer->output_dir;
     push @to_rmdir, $output_dir;
-    Mail::Audit::_log(3, "outputting under $output_dir");
+    $mailinternet->_log(3, "outputting under $output_dir");
   }
 
   bless($self, $class);
@@ -102,12 +102,12 @@ sub parser { $parser ||= MIME::Parser->new(); }
 sub DESTROY {
   my $self = shift;
 
-  Mail::Audit::_log(3, "running Mail::Audit::MimeEntity DESTROY on $self");
+  $self->_log(3, "running Mail::Audit::MimeEntity DESTROY on $self");
 
   foreach my $dir (@to_rmdir) {
     next if index($dir, $MIME_PARSER_TMPDIR) != 0;
-    Mail::Audit::_log(3, "attempting to rm $dir");
-    rmtree($dir) or Mail::Audit::_log(3, "rmdir error: $!");
+    $self->_log(3, "attempting to rm $dir");
+    rmtree($dir) or $self->_log(3, "rmdir error: $!");
   }
 
 }

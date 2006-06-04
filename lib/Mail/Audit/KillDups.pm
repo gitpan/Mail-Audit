@@ -16,8 +16,13 @@ sub killdups {
   my $end_of_ring = 0;
   my $current_pos;
 
+  unless (length $mid) {
+    $self->_log(1, "message has no message-id; skipping duplicate check");
+    return;
+  }
+
   unless (sysopen MSGID, $Mail::Audit::KillDups::dupfile, O_RDWR | O_CREAT) {
-    _log(1, "Error opening $Mail::Audit::KillDups::dupfile: $!");
+    $self->_log(1, "Error opening $Mail::Audit::KillDups::dupfile: $!");
     return 1;
   }
 
@@ -25,7 +30,7 @@ sub killdups {
   while (<MSGID>) {
     chomp;
     if ($_ eq $mid) {
-      _log(1, "Duplicate, ignoring");
+      $self->_log(1, "Duplicate, ignoring");
       $self->ignore;
       return 2;
     }
@@ -46,7 +51,7 @@ sub killdups {
 
   # Didn't find mid, so write it to the end of the ring buffer
   unless (seek MSGID, $end_of_ring, 0) {
-    _log(1, "seek to position $end_of_ring failed: $!");
+    $self->_log(1, "seek to position $end_of_ring failed: $!");
     close MSGID;
     return 3;
   }

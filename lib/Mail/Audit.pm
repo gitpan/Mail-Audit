@@ -1,24 +1,17 @@
 package Mail::Audit;
 use strict;
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22026 2006-06-02T02:13:29.371409Z rjbs  $
-
-my $logging;
-my $loglevel = 3;
-my $logfile  = "/tmp/" . getpwuid($>) . "-audit.log";
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22074 2006-06-04T20:01:02.176686Z rjbs  $
 
 use Carp ();
 use File::Basename ();
 use Mail::Audit::MailInternet ();
 use Mail::Internet ();
+use Symbol ();
 
 use Sys::Hostname ();
-(my $HOSTNAME = Sys::Hostname::hostname) =~ s/\..*//;
 
 use Fcntl ':flock';
-
-use vars qw($ASSUME_MSGPREFIX);
-$ASSUME_MSGPREFIX = 0;
 
 # stolen from linux sysexits.h, YMMV on other OSes.  sorry, but it was either this or forcing everyone to h2ph.
 use constant EX_USAGE       => 64;  # command line usage error
@@ -41,7 +34,7 @@ use constant DEFERRED  => EX_TEMPFAIL;
 use constant REJECTED  => 100;
 use constant DELIVERED => 0;
 
-$Mail::Audit::VERSION = '2.200_03';
+$Mail::Audit::VERSION = '2.200_04';
 
 =head1 NAME
 
@@ -91,13 +84,13 @@ sub import {
 
 sub _log {
   my ($self, $priority, $what) = @_;
-  return if $loglevel < $priority;
+  return if $self->{_log}{level} < $priority;
   chomp $what;
   chomp $what;
   my ($subroutine) = (caller(1))[3];
   $subroutine =~ s/(.*):://;
   my ($line) = (caller(0))[2];
-  print LOG "$line($subroutine): $what\n";
+  print { $self->{_log}{fh} } "$line($subroutine): $what\n";
 }
 
 sub _get_opt {
@@ -177,27 +170,28 @@ sub new {
   my $mime_test = (delete $opts{mime_test}) || $default_mime_test;
 
   # set up logging
-  open LOG, ">>/dev/null";
-  if (exists $opts{loglevel}) {
-    $logging  = 1;
-    $loglevel = $opts{loglevel};
+  my $log = {};
+  $log->{fh} = Symbol::gensym;
+  $log->{level} = exists $opts{loglevel} ? $opts{loglevel} : 3;
+
+  $log->{file} 
+    = exists $opts{log} ? $opts{log} : ("/tmp/" . getpwuid($>) . "-audit.log");
+
+  unless ($log->{file} and open $log->{fh}, ">>$log->{file}") {
+    warn "couldn't open $log->{file} to log" if $log->{file};
+    $log->{fh} = \*STDERR;
   }
 
-  if (exists $opts{log}) {
-    $logging = 1;
-    $logfile = $opts{log};
-  }
-
-  if ($logging) {
-    # this doesn't seem to propagate to the calling script.  hmm.
-    open LOG, ">>$logfile" or open LOG, ">>/dev/null";
-  }
-
-  $class->_log(1, "------------------------------ new run at " . localtime);
   my $self = Mail::Audit::MailInternet->new(
     (exists $opts{data} ? $opts{data} : \*STDIN),
     Modify => 0
   );
+
+  # This sucks, but the gut-construction order does, too.  We need to make it
+  # saner in general. -- rjbs, 2006-06-04
+  $self->{_log} = $log;
+
+  $self->_log(1, "------------------------------ new run at " . localtime);
 
   $self->_log(2, "   From: " . ($self->get("from")));
   $self->_log(2, "     To: " . ($self->get("to")));
@@ -226,6 +220,8 @@ sub new {
     }
   }
 
+  ($self->{_hostname} = Sys::Hostname::hostname) =~ s/\..*//;
+
   $self->{_audit_opts} = \%opts;
   $self->{_audit_opts}->{noexit}               ||= 0;
   $self->{_audit_opts}->{interpolate_strftime} ||= 0;
@@ -241,6 +237,17 @@ sub new {
     unless exists $self->{_audit_opts}->{emergency};
 
   return $self;
+}
+
+# XXX: This is a test case until I have a better interface.  This will make
+# testing simpler! -- rjbs, 2006-06-04
+sub _exit {
+  my ($self, $exit) = @_;
+
+  return $self->{_audit_opts}->{_exit}->(@_)
+    if exists $self->{_audit_opts}->{_exit};
+
+  exit $exit;
 }
 
 =head1 DELIVERY METHODS
@@ -266,12 +273,12 @@ maildirs turn out to be on multiple filesystems, you get multiple files.)
 If you don't want the "new/cur/tmp" structure of a classical maildir, set the
 one_for_all option, and you'll still get the unique filenames.
 
- accept( {one_for_all=>1}, dir1, dir2, ... );
+ accept( dir1, dir2, ..., { one_for_all => 1 });
 
-If you want "%" signs to be expanded according to strftime(3), you can pass
+If you want "%" signs to be expanded according to C<strftime(3)>, you can pass
 C<accept> the option C<interpolate_strftime>:
 
- accept( {interpolate_strftime=>1}, file1, file2, ... );
+ accept( file1, file2, ..., { interpolate_strftime => 1 });
 
 "interpolate_strftime" is not enabled by default for two reasons: backward
 compatibility (though nobody I know has a % in any mail folder name) and
@@ -290,8 +297,8 @@ By default, C<accept> is final; Mail::Audit will terminate after successfully
 accepting the message.  If you want to keep going, set C<noexit>.  C<accept>
 will return the filename(s) that it saved to.
 
- my  @pathnames = accept({noexit=>1}, file1, file2, ... );
- my ($pathname) = accept({noexit=>1}, file1);
+ my  @pathnames = accept(file1, file2, ..., { noexit => 1 });
+ my ($pathname) = accept(file1);
 
 If for any reason C<accept> is unable to write the message (eg. you're over
 quota), Mail::Audit will attempt delivery to the C<emergency> mailbox.  If
@@ -324,8 +331,7 @@ sub _nifty_interpolate {
       or $self->{_audit_opts}->{interpolate_strftime}
     )
     and grep { /%/ } @out
-    )
-  {
+  ) {
     require POSIX;
     import POSIX qw(strftime);
     @out = map { strftime($_, @localtime) } @out;
@@ -340,10 +346,11 @@ sub _nifty_interpolate {
 
 sub accept {
   my $self = shift;
-  return $self->{_audit_opts}->{accept}->(@_)
-    if exists $self->{_audit_opts}->{accept};
 
   my $local_opts = $self->_get_opt(\@_);
+
+  return $self->{_audit_opts}->{accept}->(@_, $local_opts)
+    if exists $self->{_audit_opts}->{accept};
 
   my @files = $self->_nifty_interpolate(@_, $local_opts);
 
@@ -371,13 +378,11 @@ sub accept {
   #   (procmail  will  do  so utilising hardlinks).
   #
   # for now we will support maildir and mbox delivery.
-  # MH delivery and MSGPREFIX delivery remain todo.
-
+  # MH delivery remains todo.
   my %accept_types = (
     mbox      => [],
     maildir   => [],
     mh        => [],
-    msgprefix => [],
   );
 
   for my $file (@files) {
@@ -390,7 +395,8 @@ sub accept {
     next if not @{ $accept_types{$accept_type} };
     my $accept_handler = "_accept_to_$accept_type";
     $self->_log(3,
-      "calling accept handler $accept_handler(@{$accept_types{$accept_type}})");
+      "calling accept handler $accept_handler(@{$accept_types{$accept_type}})"
+    );
     push @actually_saved_to_files,
       $self->$accept_handler(@{ $accept_types{$accept_type} }, $local_opts);
   }
@@ -403,7 +409,7 @@ sub accept {
       or $self->{_audit_opts}->{noexit}
     ) {
       $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
-      exit DELIVERED;
+      $self->_exit(DELIVERED);
     }
   } else {  # nothing got delivered, take emergency action.
 
@@ -457,24 +463,9 @@ sub _mailbox_type {
   my $self = shift;
   my $file = shift;
 
-  if ($file =~ m{/$})   { return "maildir" }
-  if ($file =~ m{/\.$}) { return "mh" }
-  if (-d $file) {
-    if (-d "$file/tmp" and -d "$file/new") { return "maildir" }
-    if (exists($self->{_audit_opts}->{ASSUME_MSGPREFIX})) {
-      if ($self->{_audit_opts}->{ASSUME_MSGPREFIX}) {
-        return "msgprefix";
-      } else {
-        return "maildir";
-      }
-    }
-
-    if ($ASSUME_MSGPREFIX) {
-      return "msgprefix"
-    } else {
-      return "maildir"
-    }
-  }
+  return 'maildir' if $file =~ m{/\z};
+  return 'mh'      if $file =~ m{/\.\z};
+  return 'maildir' if -d $file;
 
   return 'mbox';
 }
@@ -486,7 +477,7 @@ sub _accept_to_mbox {
 
   foreach my $file (@_) {
     # auto-create the parent dir.
-    if (my $mkdir_error = _mkdir_p(File::Basename::dirname($file))) {
+    if (my $mkdir_error = $self->_mkdir_p(File::Basename::dirname($file))) {
       $self->_log(0, $mkdir_error);
       next;
     }
@@ -510,13 +501,14 @@ sub _write_message {
 
   $self->_log(3, "writing to $file; options @{[%$write_opts]}");
 
-  unless (open(FH, ">>$file")) { return "Couldn't open $file: $!"; }
+  my $fh = Symbol::gensym;
+  unless (open($fh, ">>$file")) { return "Couldn't open $file: $!"; }
 
   if ($write_opts->{need_lock}) {
-    my $lock_error = _audit_get_lock(\*FH, $file);
+    my $lock_error = $self->_audit_get_lock($fh, $file);
     return $lock_error if $lock_error;
   }
-  seek FH, 0, 2;
+  seek $fh, 0, 2;
 
   if (not $write_opts->{need_from} and $self->head->header->[0] =~ /^From\s/)
   {
@@ -530,9 +522,9 @@ sub _write_message {
     if (exists $ENV{UFLINE}) {
       $self->_log(3,
         "Looks qmail, but preline not run, prepending UFLINE, RPLINE, DTLINE");
-      print FH $ENV{UFLINE};
-      print FH $ENV{RPLINE};
-      print FH $ENV{DTLINE};
+      print $fh $ENV{UFLINE};
+      print $fh $ENV{RPLINE};
+      print $fh $ENV{DTLINE};
     } else {
       my $from = (
           $self->get('Return-path')
@@ -548,7 +540,7 @@ sub _write_message {
       # strip timezone.
       (my $fromtime = localtime) =~ s/(:\d\d) \S+ (\d{4})$/$1 $2/;
 
-      print FH "From $from  $fromtime\n";
+      print $fh "From $from  $fromtime\n";
     }
   }
 
@@ -556,19 +548,19 @@ sub _write_message {
   if ($write_opts->{need_from}) {
     my $content = $self->as_string;
     $content =~ s/\nFrom /\n>From /g;
-    print FH $content;
+    print $fh $content;
   } else {
-    print FH $self->as_string;
+    print $fh $self->as_string;
   }
 
   # extra \n added because mutt seems to like a "\n\nFrom " in mbox files
-  print FH "\n" if $write_opts->{extra_newline};
+  print $fh "\n" if $write_opts->{extra_newline};
 
   if ($write_opts->{need_lock}) {
-    flock(FH, LOCK_UN) or return "Couldn't unlock $file";
+    flock($fh, LOCK_UN) or return "Couldn't unlock $file";
   }
 
-  close FH or return "Couldn't close $file after writing: $!";
+  close $fh or return "Couldn't close $file after writing: $!";
   $self->_log(4, "returning success.");
   return 0;  # success
 }
@@ -583,15 +575,6 @@ sub _accept_to_mh {
   my $local_opts = $self->_get_opt(\@_);
 
   die "_accept_to_mh not implemented";
-  return @saved_to;
-}
-
-sub _accept_to_msgprefix {
-  my $self       = shift;
-  my @saved_to   = ();
-  my $local_opts = $self->_get_opt(\@_);
-
-  die "_accept_to_msgprefix not implemented";
   return @saved_to;
 }
 
@@ -641,7 +624,7 @@ sub _accept_to_maildir {
     my $msg_file;
     do {
       $msg_file = join ".",
-        ($maildir_time, $$ . "_$maildir_counter", $HOSTNAME);
+        ($maildir_time, $$ . "_$maildir_counter", $self->{_hostname});
       $maildir_counter++;
     } while (-e "$tmpdir/$msg_file");
 
@@ -650,7 +633,7 @@ sub _accept_to_maildir {
 
     # auto-create the maildir.
     if (
-      my $mkdir_error = _mkdir_p(
+      my $mkdir_error = $self->_mkdir_p(
         $local_opts->{one_for_all}
         ? ($file)
         : map { "$file/$_" } qw(tmp new cur)
@@ -685,13 +668,13 @@ sub _accept_to_maildir {
     $maildir_counter = 0;
     do {
       $msg_file = join ".",
-        ($maildir_time = time, $$ . "_$maildir_counter", $HOSTNAME);
+        ($maildir_time = time, $$ . "_$maildir_counter", $self->{_hostname});
       $maildir_counter++;
     } while (-e "$newdir/$msg_file");
 
     # auto-create the maildir.
     if (
-      my $mkdir_error = _mkdir_p(
+      my $mkdir_error = $self->_mkdir_p(
         $local_opts->{one_for_all}
         ? ($file)
         : map { "$file/$_" } qw(tmp new cur)
@@ -738,17 +721,15 @@ This is a final delivery method.  The C<noexit> option has no effect here.
 
 sub reject {
   my $self = shift;
-  return $self->{_audit_opts}->{reject}->(@_)
+
+  my $local_opt = $self->_get_opt(\@_);
+
+  return $self->{_audit_opts}->{reject}->(@_, $local_opt)
     if exists $self->{_audit_opts}->{reject};
 
   $self->_log(1, "Rejecting with exitcode " . REJECTED . " and reason @_");
 
-  # we say this instead of
-  #    print STDERR @_; exit REJECTED;
-  # Because we want to be able to trap reject() inside an eval {} for testing
-  # purposes.  (Tests?  Say what? -- rjbs, 2006-05-30)
-  $! = REJECTED;
-  die(@_);
+  $self->_exit(REJECTED);
 }
 
 =item resend
@@ -783,7 +764,7 @@ sub resend {
     or $self->{_audit_opts}->{noexit}
   ) {
     $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
-    exit DELIVERED;
+    $self->_exit(DELIVERED);
   }
 }
 
@@ -808,20 +789,21 @@ sub pipe {
   my ($file) = $self->_nifty_interpolate($command, $local_opts);
   $self->_log(1, "Piping to $file");
 
-  unless (open(PIPE, "|$file")) {
+  my $pipe = Symbol::gensym;
+  unless (open($pipe, "|$file")) {
     $self->_log(0, "Couldn't open pipe $file: $!");
     $self->accept();
   }
 
-  $self->print(\*PIPE);
-  close PIPE;
+  $self->print($pipe);
+  close $pipe;
   $self->_log(3, "Pipe closed with status $?");
 
   unless ((exists $local_opts->{noexit} and $local_opts->{noexit})
     or $self->{_audit_opts}->{noexit}
   ) {
     $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
-    exit DELIVERED;
+    $self->_exit(DELIVERED);
   }
 }
 
@@ -842,7 +824,7 @@ sub ignore {
 
   my $local_opts = $self->_get_opt(\@_);
 
-  exit DELIVERED
+  $self->_exit(DELIVERED)
     unless ((exists $local_opts->{noexit} and $local_opts->{noexit})
     or $self->{_audit_opts}->{noexit});
 }
@@ -1036,9 +1018,17 @@ sub replace_header { $_[0]->head->replace($_[1], $_[2]); }
 sub delete_header  { $_[0]->head->delete($_[1]); }
 
 sub get {
-  my $string = $_[0]->head->get($_[1]);
-  chomp($string = (defined $string && length $string) ? $string : "");
-  $string;
+  my ($self, $header) = @_;
+  
+  if (wantarray) {
+    my @strings = $self->head->get($header);
+    chomp @strings;
+    return @strings;
+  } else {
+    my $string = $self->head->get($header);
+    chomp($string = (defined $string && length $string) ? $string : "");
+    return $string;
+  }
 }
 
 # inheriting from MIME::Entity breaks this.  mengwong 20020112
@@ -1183,29 +1173,33 @@ sub __from_mailer {
 # ----------------------------------------------------------
 
 sub _audit_get_lock {
-  my $FH   = shift;
+  my $self = shift;
+  my $fh   = shift;
   my $file = shift;
-  __PACKAGE__->_log(4, "  attempting to lock  file $file");
+  $self->_log(4, "  attempting to lock file $file");
   for (1 .. 10) {
-    if (flock($FH, LOCK_EX)) {
-      __PACKAGE__->_log(4, "  successfully locked file $file");
+    if (flock($fh, LOCK_EX)) {
+      $self->_log(4, "  successfully locked file $file");
       return;
     } else {
       sleep $_ and next;
     }
   }
-  __PACKAGE__->_log(1, my $errstr = "Couldn't get exclusive lock on $file");
+  $self->_log(1, my $errstr = "Couldn't get exclusive lock on $file");
   return $errstr;
 }
 
 sub _mkdir_p {  # mkdir -p (also create parents if necessary)
+  my $self = shift;
   return if not @_;
   return if not length $_[0];
   foreach (@_) {
     next if -d $_;
     chop while m{/$};
-    __PACKAGE__->_log(4, "$_ doesn't exist, creating.");
-    if (my $error = _mkdir_p(File::Basename::dirname($_))) { return $error }
+    $self->_log(4, "$_ doesn't exist, creating.");
+    if (my $error = $self->_mkdir_p(File::Basename::dirname($_))) {
+      return $error
+    }
     mkdir($_, 0777) or return "unable to mkdir $_: $!";
   }
   return;
@@ -1217,6 +1211,8 @@ The usual. This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
 =head1 BUGS
+
+Numerous and sometimes nasty.  RJBS is working to eradicate them all.
 
 L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Mail-Audit>
 

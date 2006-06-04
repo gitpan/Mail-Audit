@@ -1,6 +1,11 @@
 #!perl
-use Test::More 'no_plan';
+use strict;
+use warnings;
+
+use File::Spec ();
 use File::Temp ();
+
+use Test::More 'no_plan';
 
 BEGIN { use_ok('Mail::Audit'); }
 
@@ -18,16 +23,35 @@ my $message = readfile('t/messages/simple.msg');
 my $maildir   = File::Temp::tempdir(CLEANUP => 1);
 my $emergency = File::Temp::tempdir(CLEANUP => 1);
 
+my $logdir    = File::Temp::tempdir(CLEANUP => 1);
+
 my $audit = Mail::Audit->new(
   data      => $message,
   emergency => $emergency,
+  log       => "$logdir/log",
+  loglevel  => 0,
 );
 
 isa_ok($audit, 'Mail::Audit');
 
+is($audit->subject, 'gorp', 'subject correct');
+is($audit->get('subject'), 'gorp', 'subject correct (via header)');
+
+{
+  my @subject = $audit->get('subject');
+  is_deeply(\@subject, ["gorp"], "subject correct (via header, list context)");
+}
+
 # XXX: use catdir to make this OS-agnostic -- rjbs, 2006-06-01
-ok((! -d "$emergency/new"), "emergency dir isn't a maildir before any accepts");
-ok((! -d "$maildir/new"),   "and neither is the other temporary dir");
+ok(
+  (! -d File::Spec->catdir($emergency, 'new')),
+  "emergency dir isn't a maildir before any accepts"
+);
+
+ok(
+  (! -d File::Spec->catdir($maildir, 'new')),
+  "and neither is the other temporary dir"
+);
 
 $audit->noexit(1);
 $audit->accept($maildir);
@@ -35,11 +59,22 @@ $audit->noexit(0);
 
 pass("we're still here! object-wide noexit was respected");
 
-ok((! -d "$emergency/new"), "emergency dir isn't a maildir after first accept");
-ok((  -d "$maildir/new"),   "but the other temporary dir is");
+ok(
+  (! -d File::Spec->catdir($emergency, 'new')),
+  "emergency dir isn't a maildir after first accept"
+);
+
+ok(
+  (  -d File::Spec->catdir($maildir, 'new')),
+  "but the other maildir, which we accepted, is"
+);
 
 $audit->accept({ noexit => 1 });
-
-ok((  -d "$emergency/new"), "after accept without dest, emergency is maildir");
+ok(
+  (  -d File::Spec->catdir($emergency, 'new')),
+  "after accept without dest, emergency is maildir"
+);
 
 pass("we're still still here! per-method noexit was respected");
+
+ok((  -f "$logdir/log"),    "a log was created");

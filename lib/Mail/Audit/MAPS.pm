@@ -16,7 +16,7 @@ sub myALRM { die "alarm\n" }
 
 sub rblcheck {
   my ($self, $timeout) = (shift, shift);
-  _log(1, "Performing RBL check");
+  $self->_log(1, "Performing RBL check");
   my @recieved = $self->received;
   my $rcvcount = 0;
   $timeout = 10 unless defined $timeout;
@@ -27,13 +27,13 @@ sub rblcheck {
   for (@recieved) {
     my $x = _checkit($rcvcount, $_, $timeout);
     if ($x) {
-      _log(2,
+      $self->_log(2,
         "Check returned $x after " . (1 + $rcvcount) . " recieved headers");
       return $x;
     }
     $rcvcount++;   # Any further Received lines won't be the first.
   }
-  _log(2, "Check was fine");
+  $self->_log(2, "Check was fine");
   return '';
 }
 

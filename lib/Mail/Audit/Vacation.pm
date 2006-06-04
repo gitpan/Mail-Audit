@@ -23,7 +23,7 @@ sub vacation {
   my $reply = $item->head->get("Reply-To")
     || $item->head->get("From");
   return if $item->head->get("Distribution") =~ /bulk/i or !$reply;
-  _log(1, "Vacation thing from $reply");
+  $item->_log(1, "Vacation thing from $reply");
   if (open TOLD, $Mail::Audit::Vacation::vacfile) {
     while (<TOLD>) {
       if ($_ eq $reply) {

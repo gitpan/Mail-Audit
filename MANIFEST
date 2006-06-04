@@ -24,6 +24,8 @@ popread
 proc2ma
 README
 t/basic.t
+t/custom-accept.t
+t/exit.t
 t/dan-root.t
 t/messages/simple.msg
 t/pod.t

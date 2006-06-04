@@ -1,5 +1,12 @@
 Revision history for Perl extension Mail::Audit.
 
+2.200_04 2006-06-04
+         log now uses on-object filehandles, rather than globals
+         delivery to msgprefix completely removed, as it was never implemented
+         exit behavior somewhat encapsulated for testability
+         PGP plugin now replaces, rather than adds, content type headers
+         more tests
+
 2.200_03 2006-06-01
          our first meaningful tests!
          also some POD tests
