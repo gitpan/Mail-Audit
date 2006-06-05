@@ -25,8 +25,13 @@ proc2ma
 README
 t/basic.t
 t/custom-accept.t
-t/exit.t
 t/dan-root.t
+t/exit.t
+t/ignore.t
+t/is_mime.t
+t/messages/mime-text.msg
 t/messages/simple.msg
-t/pod.t
 t/pod-coverage.t
+t/pod.t
+t/reject.t
+t/shorthand.t

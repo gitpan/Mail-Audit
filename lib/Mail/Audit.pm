@@ -1,10 +1,11 @@
 package Mail::Audit;
 use strict;
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22074 2006-06-04T20:01:02.176686Z rjbs  $
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22093 2006-06-05T03:36:12.885477Z rjbs  $
 
 use Carp ();
 use File::Basename ();
+use File::Spec ();
 use Mail::Audit::MailInternet ();
 use Mail::Internet ();
 use Symbol ();
@@ -34,7 +35,7 @@ use constant DEFERRED  => EX_TEMPFAIL;
 use constant REJECTED  => 100;
 use constant DELIVERED => 0;
 
-$Mail::Audit::VERSION = '2.200_04';
+$Mail::Audit::VERSION = '2.200_05';
 
 =head1 NAME
 
@@ -84,6 +85,7 @@ sub import {
 
 sub _log {
   my ($self, $priority, $what) = @_;
+  return unless $self->{_log};
   return if $self->{_log}{level} < $priority;
   chomp $what;
   chomp $what;
@@ -113,7 +115,9 @@ sub _get_opt {
 
 =over 4
 
-=item C<new(%options)>
+=item new
+
+  my $mail = Mail::Audit->new(%option)
 
 The constructor reads a mail message from C<STDIN> (or, if the C<data> option
 is set, from an array reference or \*GLOBref) and creates a C<Mail::Audit>
@@ -227,10 +231,13 @@ sub new {
   $self->{_audit_opts}->{interpolate_strftime} ||= 0;
   $self->{_audit_opts}->{one_for_all}          ||= 0;
 
-  my $default_mbox = (
+  # XXX: How very unixocentric of us. -- rjbs, 2006-06-04
+  my $default_maildir = ((getpwuid($>))[7]) . '/Maildir';
+  my $default_mbox = 
     $ENV{MAIL}
-    || (grep { -d $_ } qw(/var/spool/mail/ /var/mail/))[0] . getpwuid($>)
-  );
+    || (-d File::Spec->catdir($default_maildir, 'new') ? $default_maildir : ())
+    || ((grep { -d $_ } qw(/var/spool/mail/ /var/mail/))[0] . getpwuid($>));
+
   $self->{_default_mbox} = $default_mbox;
 
   $self->{_audit_opts}->{emergency} = $default_mbox
@@ -260,7 +267,7 @@ sub _exit {
 
 You can choose to accept the mail into a mailbox by calling the C<accept>
 method; with no argument, this accepts to F</var/spool/mail/you>. The mailbox
-is opened append-write, then locked F<LOCK_EX>, the mail written and then the
+is opened append-write, then locked C<LOCK_EX>, the mail written and then the
 mailbox unlocked and closed.  If Mail::Audit sees that you have a maildir style
 system, where F</var/spool/mail/you> is a directory, it'll deliver in maildir
 style.  If the path you specify does not exist, Mail::Audit will assume mbox,
@@ -273,12 +280,12 @@ maildirs turn out to be on multiple filesystems, you get multiple files.)
 If you don't want the "new/cur/tmp" structure of a classical maildir, set the
 one_for_all option, and you'll still get the unique filenames.
 
- accept( dir1, dir2, ..., { one_for_all => 1 });
+  accept( dir1, dir2, ..., { one_for_all => 1 });
 
 If you want "%" signs to be expanded according to C<strftime(3)>, you can pass
 C<accept> the option C<interpolate_strftime>:
 
- accept( file1, file2, ..., { interpolate_strftime => 1 });
+  accept( file1, file2, ..., { interpolate_strftime => 1 });
 
 "interpolate_strftime" is not enabled by default for two reasons: backward
 compatibility (though nobody I know has a % in any mail folder name) and
@@ -286,20 +293,20 @@ username interpolation: many people like to save messages by their
 correspondent's username, and that username may contain a % sign.  If you are
 one of these people, you should
 
- $username =~ s/%/%%/g;
+  $username =~ s/%/%%/g;
 
 If your arguments contain "/", C<accept> will create arbitarily deep
 subdirectories accordingly.  Untaint your input by saying
 
- $username =~ s,/,-,g;
+  $username =~ s,/,-,g;
 
 By default, C<accept> is final; Mail::Audit will terminate after successfully
 accepting the message.  If you want to keep going, set C<noexit>.  C<accept>
 will return the filename(s) that it saved to.
 
- my  @pathnames = accept(file1, file2, ..., { noexit => 1 });
- my ($pathname) = accept(file1);
-
+  my  @pathnames = accept(file1, file2, ..., { noexit => 1 });
+  my ($pathname) = accept(file1);
+ 
 If for any reason C<accept> is unable to write the message (eg. you're over
 quota), Mail::Audit will attempt delivery to the C<emergency> mailbox.  If
 C<accept> was called with multiple destinations, the C<emergency> action will
@@ -315,27 +322,25 @@ this method.
 
 =cut
 
-sub _nifty_interpolate {
-  # perform ~user and %Y%m%d strftime interpolation
+sub _shorthand_expand {
+  # perform ~user and %Y%m%d strftime expansion
   my $self       = shift;
   my $local_opts = $self->_get_opt(\@_);
   my @out        = @_;
 
-  my @localtime  = localtime;
+  my $opt = 'interpolate_strftime';
   if (
-    (
-      (
-        exists $local_opts->{interpolate_strftime}
-        and $local_opts->{interpolate_strftime}
-      )
-      or $self->{_audit_opts}->{interpolate_strftime}
-    )
-    and grep { /%/ } @out
+    ((exists $local_opts->{$opt} and $local_opts->{$opt})
+      or $self->{_audit_opts}->{$opt})
+    and grep { index($_, '%') >= 0 } @out
   ) {
+    my @localtime  = localtime;
     require POSIX;
     import POSIX qw(strftime);
     @out = map { strftime($_, @localtime) } @out;
   }
+  # We should replace getpwuid with File::HomeDir, in case someone uses this on
+  # Win32.  (That would be a surprise!) -- rjbs, 2006-06-04
   @out = map {
     s{^~/}     {((getpwuid($>))[7])."/"}e;
     s{^~(\w+)/}{((getpwnam($1))[7])."/"}e;
@@ -352,30 +357,28 @@ sub accept {
   return $self->{_audit_opts}->{accept}->(@_, $local_opts)
     if exists $self->{_audit_opts}->{accept};
 
-  my @files = $self->_nifty_interpolate(@_, $local_opts);
+  my @files = $self->_shorthand_expand(@_, $local_opts);
 
-  unless (@files) {
-    @files = $self->{_default_mbox};
-  }
+  @files = $self->{_default_mbox} unless @files;
 
   my @actually_saved_to_files = ();
 
   $self->_log(2, "accepting to @files");
 
   # from man procmailrc:
-  #   If  it  is  a  directory,  the mail will be delivered to a newly created,
-  #   guaranteed to be unique file named $MSGPRE- FIX* in the specified
+  #   If it is a directory, the mail will be delivered to a newly created,
+  #   guaranteed to be unique file named $MSGPREFIX* in the specified
   #   directory.  If the mailbox name ends in "/.", then this directory  is
-  #   presumed  to  be  an  MH folder;  i.e.,  procmail will use the next
-  #   number it finds available.  If the mailbox name ends  in  "/",  then
-  #   this directory  is presumed to be a maildir folder; i.e., proc- mail will
-  #   deliver the message to a file in a  subdirectory named  "tmp"  and
-  #   rename  it  to be inside a subdirectory named "new".  If the mailbox is
-  #   specified  to  be  an  MH folder  or maildir folder, procmail will create
-  #   the neces- sary directories if they don't exist,  rather  than  treat the
+  #   presumed to be an MH folder; i.e., procmail will use the next
+  #   number it finds available.  If the mailbox name ends in "/", then
+  #   this directory is presumed to be a maildir folder; i.e., procmail will
+  #   deliver the message to a file in a  subdirectory named  "tmp" and
+  #   rename it to be inside a subdirectory named "new".  If the mailbox is
+  #   specified to be an MH folder or maildir folder, procmail will create
+  #   the necessary directories if they don't exist, rather than treat the
   #   mailbox as a non-existent filename.  When procmail is delivering to
-  #   directories, you can specify multiple direc- tories  to  deliver  to
-  #   (procmail  will  do  so utilising hardlinks).
+  #   directories, you can specify multiple directories to deliver to
+  #   (procmail will do so utilising hardlinks).
   #
   # for now we will support maildir and mbox delivery.
   # MH delivery remains todo.
@@ -411,24 +414,19 @@ sub accept {
       $self->_log(2, "Exiting with status DELIVERED = " . DELIVERED);
       $self->_exit(DELIVERED);
     }
-  } else {  # nothing got delivered, take emergency action.
-
-    # in this section you will often see
-    #    $!=DEFERRED; die("unable to write to @files or to $emergency");
-    # we say this instead of
-    #    exit DEFERRED;
-    # because we want to be able to trap the die message inside an eval {} for
-    # testing purposes.
+  } else {
+    # nothing got delivered, take emergency action.
 
     my $emergency = $self->{_audit_opts}->{emergency};
     if (not defined $emergency) {
       $self->_log(0,
-        "unable to write to @files and no emergency mailbox defined; exiting EX_TEMPFAIL"
+        "unable to write to @files and no emergency mailbox defined; "
+        . "exiting EX_TEMPFAIL"
       );
-      $! = DEFERRED;
-      die("unable to write to @files");
+      warn "unable to write to @files";
+      $self->_exit(DEFERRED);
     } else {
-      if (grep ($emergency eq $_, @files)) {  # already tried that mailbox
+      if (grep { $emergency eq $_ } @files) {  # already tried that mailbox
         if (@files == 1) {
           $self->_log(0, "unable to write to @files; exiting EX_TEMPFAIL");
         } else {
@@ -436,8 +434,8 @@ sub accept {
             "unable to write to any of (@files), which includes the emergency mailbox; exiting EX_TEMPFAIL"
           );
         }
-        $! = DEFERRED;
-        die("unable to write to @files");
+        warn "unable to write to @files";
+        $self->_exit(DEFERRED);
       } else {
         my $accept_type    = $self->_mailbox_type($emergency);
         my $accept_handler = "_accept_to_$accept_type";
@@ -446,8 +444,8 @@ sub accept {
           $self->_log(0,
             "unable to write to @files or to emergency mailbox $emergency either; exiting EX_TEMPFAIL"
           );
-          $! = DEFERRED;
-          die("unable to write to @files");
+          warn "unable to write to @files" ;
+          $self->_exit(DEFERRED);
         } else {
           $self->_log(0,
             "unable to write to @files; wrote to emergency mailbox $emergency."
@@ -565,10 +563,6 @@ sub _write_message {
   return 0;  # success
 }
 
-# ----------------------------------------------------------
-# NOT IMPLEMENTED
-# ----------------------------------------------------------
-
 sub _accept_to_mh {
   my $self       = shift;
   my @saved_to   = ();
@@ -654,37 +648,38 @@ sub _accept_to_maildir {
     $tmp_path = undef;
   }
 
+  # unable to write to any of the specified maildirs.
   if (not $tmp_path) {
     return 0;
-  }  # unable to write to any of the specified maildirs.
+  }
 
   # it is now in tmp/.  hardlink to all the new/ destinations.
-
   foreach my $file (my @maildirs = @_) {
     $file =~ s/\/$//;
 
     my $msg_file;
     my $newdir = $local_opts->{one_for_all} ? $file : "$file/new";
     $maildir_counter = 0;
+
     do {
       $msg_file = join ".",
         ($maildir_time = time, $$ . "_$maildir_counter", $self->{_hostname});
       $maildir_counter++;
-    } while (-e "$newdir/$msg_file");
+    } while (-e File::Spec->catdir($newdir, $msg_file));
 
     # auto-create the maildir.
     if (
       my $mkdir_error = $self->_mkdir_p(
         $local_opts->{one_for_all}
         ? ($file)
-        : map { "$file/$_" } qw(tmp new cur)
+        : map { File::Spec->catdir($file, $_) } qw(tmp new cur)
       )
     ) {
       $self->_log(0, $mkdir_error);
       next;
     }
 
-    my $new_path = "$newdir/$msg_file";
+    my $new_path = File::Spec->catfile($newdir, $msg_file);
     $self->_log(3, "maildir: hardlinking to $new_path");
 
     if (link $tmp_path, $new_path) {
@@ -727,20 +722,20 @@ sub reject {
   return $self->{_audit_opts}->{reject}->(@_, $local_opt)
     if exists $self->{_audit_opts}->{reject};
 
-  $self->_log(1, "Rejecting with exitcode " . REJECTED . " and reason @_");
+  $self->_log(1, "Rejecting with exitcode " . REJECTED . " and reason $_[0]");
 
   $self->_exit(REJECTED);
 }
 
 =item resend
 
-  $mail->resend($address)
+  $mail->resend($address, \%option)
 
 Reinjects the email in its entirety to another address, using SMTP.
 
 This is a final delivery method.  Set C<noexit> if you want to keep going.
 
-Other options include 'host', 'port', and 'debug'; see
+Other options are all optional, and include host, port, and debug; see
 L<Mail::Internet/smtpsend>
 
 At this time this method is not overrideable by an argument to C<new>.
@@ -786,7 +781,7 @@ sub pipe {
   my $local_opts = $self->_get_opt(\@_);
   my ($command) = @_;
 
-  my ($file) = $self->_nifty_interpolate($command, $local_opts);
+  my ($file) = $self->_shorthand_expand($command, $local_opts);
   $self->_log(1, "Piping to $file");
 
   my $pipe = Symbol::gensym;
@@ -911,8 +906,6 @@ sub reply {
 
   chomp($rcpt, $subject);
 
-  my $reply = new Mail::Mailer qw(sendmail);
-
   my @references;
   @references = (
     defined $reply_opts{"references"}
@@ -932,18 +925,20 @@ sub reply {
     To      => $rcpt,
     Subject => $subject,
   );
-  $headers{"From"}       = $reply_opts{"from"} if defined $reply_opts{"from"};
-  $headers{"CC"}         = $reply_opts{"cc"}   if defined $reply_opts{"cc"};
-  $headers{"BCC"}        = $reply_opts{"bcc"}  if defined $reply_opts{"bcc"};
-  $headers{"References"} = "@references"       if @references;
-  $headers{"X-Loop"} = $reply_opts{"x-loop"} || $self->get("X-Loop") || "1";
+  $headers{From}       = $reply_opts{from} if defined $reply_opts{from};
+  $headers{CC}         = $reply_opts{cc}   if defined $reply_opts{cc};
+  $headers{BCC}        = $reply_opts{bcc}  if defined $reply_opts{bcc};
+  $headers{References} = "@references"     if @references;
+  $headers{"X-Loop"}   = $reply_opts{"x-loop"} || $self->get("X-Loop") || "1";
   $headers{"X-Loop-Detect"} = $self->get("X-Loop-Detect") || "1";
+
+  my $reply = Mail::Mailer->new(qw(sendmail));
 
   $reply->open(\%headers);
 
   print $reply (
-    defined $reply_opts{'body'}
-    ? $reply_opts{'body'}
+    defined $reply_opts{body}
+    ? $reply_opts{body}
     : "Your message has been received.\n");
   $reply->close;  # complete the message and send it
 
@@ -1070,8 +1065,6 @@ Returns the header as a single string.
 
 =item * is_mime
 
-=item * ismime
-
 Am I a MIME message?  If so, MIME::Entity methods apply.  Otherwise,
 Mail::Internet methods apply.
 
@@ -1098,7 +1091,6 @@ sub subject  { $_[0]->get("Subject") }
 sub bcc      { $_[0]->get("BCC") }
 sub cc       { $_[0]->get("CC") }
 sub received { $_[0]->get("Received") }
-sub ismime   { $_[0]->is_mime() }
 
 # from_mailer and from_daemon inspired by procmailrc
 sub from_daemon {
@@ -1237,10 +1229,27 @@ beast, refactoring, documenting, and testing.
 
 =head1 SEE ALSO
 
-L<http://simon-cozens.org/writings/mail-audit.html>
+L<http://www.perl.com/pub/a/2001/07/17/mailfiltering.html>
 
-L<Mail::Internet>, L<Mail::SMTP>, L<Mail::Audit::List>, L<Mail::Audit::PGP>,
-L<Mail::Audit::MAPS>, L<Mail::Audit::KillDups>, L<Mail::Audit::Razor>...
+=over
+
+=item * L<Mail::Internet>
+
+=item * L<Mail::SMTP>
+
+=item * L<Mail::Audit::List>
+
+=item * L<Mail::Audit::PGP>
+
+=item * L<Mail::Audit::MAPS>
+
+=item * L<Mail::Audit::KillDups>
+
+=item * L<Mail::Audit::Razor>
+
+=item * L<Mail::Audit::Vacation>
+
+=back
 
 =cut
 

@@ -6,7 +6,7 @@ Mail::Audit::MailInternet - a Mail::Internet-based Mail::Audit object
 
 =cut
 
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22073 2006-06-04T19:51:42.734352Z rjbs  $
+# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22090 2006-06-05T03:28:52.097940Z rjbs  $
 
 use strict;
 use File::Path;
@@ -115,4 +115,3 @@ sub DESTROY {
 sub is_mime { 1; }
 
 1;
-

@@ -34,15 +34,6 @@ my $audit = Mail::Audit->new(
 
 isa_ok($audit, 'Mail::Audit');
 
-is($audit->subject, 'gorp', 'subject correct');
-is($audit->get('subject'), 'gorp', 'subject correct (via header)');
-
-{
-  my @subject = $audit->get('subject');
-  is_deeply(\@subject, ["gorp"], "subject correct (via header, list context)");
-}
-
-# XXX: use catdir to make this OS-agnostic -- rjbs, 2006-06-01
 ok(
   (! -d File::Spec->catdir($emergency, 'new')),
   "emergency dir isn't a maildir before any accepts"
@@ -69,6 +60,8 @@ ok(
   "but the other maildir, which we accepted, is"
 );
 
+# XXX: This test will only work if default mbox will fail.  Make a way to force
+# that. -- rjbs, 2006-06-04
 $audit->accept({ noexit => 1 });
 ok(
   (  -d File::Spec->catdir($emergency, 'new')),
