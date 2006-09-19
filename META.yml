@@ -1,18 +1,19 @@
-author: 'Ricardo SIGNES <rjbs@cpan.org>'
+author: Ricardo SIGNES <rjbs@cpan.org>
 distribution_type: module
-generated_by: Module::Install version 0.62
+generated_by: Module::Install version 0.64
 license: perl
 name: Mail-Audit
-no_index:
-  directory:
+no_index: 
+  directory: 
     - inc
     - t
-requires:
+requires: 
   Fcntl: 0
+  File::HomeDir: 0.5
   File::Temp: 0
   MIME::Entity: 0
   Mail::Internet: 0
   Mail::ListDetector: 0
   Mail::Mailer: 0
   Net::SMTP: 0
-version: 2.203
+version: 2.210
