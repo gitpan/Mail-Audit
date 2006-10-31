@@ -11,9 +11,10 @@ requires:
   Fcntl: 0
   File::HomeDir: 0.5
   File::Temp: 0
+  File::Tempdir: 0
   MIME::Entity: 0
   Mail::Internet: 0
   Mail::ListDetector: 0
   Mail::Mailer: 0
   Net::SMTP: 0
-version: 2.211
+version: 2.212
