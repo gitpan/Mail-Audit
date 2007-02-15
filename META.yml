@@ -9,7 +9,7 @@ no_index:
     - t
 requires: 
   Fcntl: 0
-  File::HomeDir: 0.5
+  File::HomeDir: 0.61
   File::Temp: 0
   File::Tempdir: 0
   MIME::Entity: 0
@@ -17,4 +17,4 @@ requires:
   Mail::ListDetector: 0
   Mail::Mailer: 0
   Net::SMTP: 0
-version: 2.213
+version: 2.214
