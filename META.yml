@@ -17,4 +17,4 @@ requires:
   Mail::ListDetector: 0
   Mail::Mailer: 0
   Net::SMTP: 0
-version: 2.216
+version: 2.217
