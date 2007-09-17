@@ -20,4 +20,4 @@ requires:
   Mail::Internet: 0
   Mail::Mailer: 0
   Net::SMTP: 0
-version: 2.220
+version: 2.221
