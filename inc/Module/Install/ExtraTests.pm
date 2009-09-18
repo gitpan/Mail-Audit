@@ -6,7 +6,7 @@ package Module::Install::ExtraTests;
 use Module::Install::Base;
 
 BEGIN {
-  our $VERSION = '0.003';
+  our $VERSION = '0.006';
   our $ISCORE  = 1;
   our @ISA     = qw{Module::Install::Base};
 }
@@ -14,7 +14,7 @@ BEGIN {
 sub extra_tests {
   my ($self) = @_;
 
-  die "extra_tests requested, but no ./xt exists\n" unless -d 'xt';
+  return unless -d 'xt';
   return unless my @content = grep { $_ =~ /^[.]/ } <xt/*>;
 
   die "unknown files found in ./xt" if grep { -f } @content;
@@ -66,7 +66,7 @@ sub __harness {
   # out on the command line can blow over its exec limit.
   require ExtUtils::Command;
   push @ARGV, __PACKAGE__->_deep_t($author_tests)
-    if $author_tests and $is_author;
+    if $author_tests and (exists $ENV{AUTHOR_TESTING} ? $ENV{AUTHOR_TESTING} : $is_author);
 
   push @ARGV, __PACKAGE__->_deep_t($release_tests)
     if $release_tests and $ENV{RELEASE_TESTING};
