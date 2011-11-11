@@ -17,7 +17,7 @@ use Mail::Audit::MailInternet;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $MIME_PARSER_TMPDIR);
 @ISA = qw(Mail::Audit MIME::Entity);
 
-$VERSION = '2.225';
+$VERSION = '2.226';
 
 # this may be a security problem on an untrusted multiuser system.
 # $MIME_PARSER_TMPDIR = "/tmp/" . getpwuid($>) . "-mailaudit";
@@ -65,10 +65,8 @@ sub _autotype_new {
 
   # we won't look at $parser->last_error because we're trying to handle as
   # much as we can.
-  my $error = ($@);
-
-  if ($error) {
-    return ($newself, "encountered error during parse: $error");
+  if (! $newself) {
+    return ($self, "encountered error during parse: $@");
 
     # note to self:
     # if the error was due to an ill-formed message/rfc822 attachment,
