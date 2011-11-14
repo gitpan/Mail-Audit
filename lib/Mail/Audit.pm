@@ -20,7 +20,7 @@ use constant REJECTED  => 100;
 use constant DEFERRED  => 75;
 use constant DELIVERED => 0;
 
-$Mail::Audit::VERSION = '2.226';
+$Mail::Audit::VERSION = '2.227';
 
 =head1 NAME
 
@@ -157,7 +157,6 @@ sub new {
   # set up logging
   unless ($opts{no_log}) {
     my $log = {};
-    $log->{fh} = Symbol::gensym;
     $log->{level} = exists $opts{loglevel} ? $opts{loglevel} : 3;
 
     $log->{file} = exists $opts{log}
@@ -167,8 +166,11 @@ sub new {
                      "mail-audit.log"
                    );
 
-    unless ($log->{file} and open $log->{fh}, ">>$log->{file}") {
-      warn "couldn't open $log->{file} to log" if $log->{file};
+    my $output_fh;
+    if ($log->{file} and open $output_fh, '>>', $log->{file}) {
+      $log->{fh} = $output_fh;
+    } else {
+      warn "couldn't open $log->{file} to log: $!" if $log->{file};
       $log->{fh} = \*STDERR;
     }
 
@@ -1023,7 +1025,7 @@ sub log {
   $subroutine =~ s/(.*):://;
   my ($line) = (caller(0))[2];
   print { $self->{_log}{fh} } "$line($subroutine): $what\n"
-    or die "couldn't write to log file";
+    or die "couldn't write to log file: $!";
 }
 
 =item tidy

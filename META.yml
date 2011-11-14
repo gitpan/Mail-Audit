@@ -28,4 +28,4 @@ requires:
   Net::SMTP: 0
 resources:
   x_Repository: http://github.com/rjbs/mail-audit
-version: 2.226
+version: 2.227
