@@ -1,13 +1,18 @@
+use strict;
 package Mail::Audit::MAPS;
+{
+  $Mail::Audit::MAPS::VERSION = '2.228';
+}
+# ABSTRACT: Mail::Audit plugin for RBL checking
 use Mail::Audit;
-use vars q(@VERSION);
-$VERSION = '2.227';
-$host    = '.blackholes.mail-abuse.org';
+our $host    = '.blackholes.mail-abuse.org';
 1;
 
 package Mail::Audit;
+{
+  $Mail::Audit::VERSION = '2.228';
+}
 
-use strict;
 use Net::SMTP;
 use Mail::Internet;
 use Sys::Hostname;
@@ -74,6 +79,7 @@ sub _checkit {
 }
 
 1;
+
 __END__
 
 =pod
@@ -82,13 +88,17 @@ __END__
 
 Mail::Audit::MAPS - Mail::Audit plugin for RBL checking
 
+=head1 VERSION
+
+version 2.228
+
 =head1 SYNOPSIS
 
     use Mail::Audit qw(MAPS);
-	my $mail = Mail::Audit->new;
+    my $mail = Mail::Audit->new;
     ...
-	if ($mail->rblcheck) {
-        ...
+    if ($mail->rblcheck) {
+      ...
     }
 
 =head1 DESCRIPTION
@@ -108,10 +118,29 @@ returns a reason if the mail is considered spam.
 
 =back
 
-=head1 AUTHOR
+=head1 AUTHORS
 
-Simon Cozens <simon@cpan.org>
+=over 4
 
-=head1 SEE ALSO
+=item *
 
-L<Mail::Audit>
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut

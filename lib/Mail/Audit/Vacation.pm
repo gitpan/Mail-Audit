@@ -1,21 +1,20 @@
+use strict;
 package Mail::Audit::Vacation;
+{
+  $Mail::Audit::Vacation::VERSION = '2.228';
+}
+# ABSTRACT: perform vacation autoresponding
 use Mail::Audit;
-use vars qw(@VERSION $vacfile $message $subject $replyto $from);
-$VERSION = '2.227';
+use vars qw($vacfile $message $subject $replyto $from);
 $vacfile = ".vacation-cache";
 $message = "This user is on vacation.";
 $subject = "Vacation autoresponse";
 $replyto = $from = "<>";
-1;
-
-=head1 NAME
-
-Mail::Audit::Vacation - perform vacation autoresponding
-
-=cut
 
 package Mail::Audit;
-use strict;
+{
+  $Mail::Audit::VERSION = '2.228';
+}
 
 sub vacation {
   my $item  = shift;
@@ -56,3 +55,41 @@ sub vacation {
   return 0;
 }
 
+__END__
+
+=pod
+
+=head1 NAME
+
+Mail::Audit::Vacation - perform vacation autoresponding
+
+=head1 VERSION
+
+version 2.228
+
+=head1 AUTHORS
+
+=over 4
+
+=item *
+
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut

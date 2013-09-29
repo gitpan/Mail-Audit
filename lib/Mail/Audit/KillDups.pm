@@ -1,12 +1,17 @@
+use strict;
 package Mail::Audit::KillDups;
+{
+  $Mail::Audit::KillDups::VERSION = '2.228';
+}
+# ABSTRACT: Mail::Audit plugin for duplicate suppression
 use Mail::Audit;
-use vars qw(@VERSION $dupfile $cache_bytes);
-$VERSION     = '2.227';
-$dupfile     = ".msgid-cache";
-$cache_bytes = 10000;
-1;
+our $dupfile     = ".msgid-cache";
+our $cache_bytes = 10000;
 
 package Mail::Audit;
+{
+  $Mail::Audit::VERSION = '2.228';
+}
 use strict;
 use Fcntl;
 
@@ -60,6 +65,7 @@ sub killdups {
 }
 
 1;
+
 __END__
 
 =pod
@@ -68,12 +74,16 @@ __END__
 
 Mail::Audit::KillDups - Mail::Audit plugin for duplicate suppression
 
+=head1 VERSION
+
+version 2.228
+
 =head1 SYNOPSIS
 
-    use Mail::Audit qw(KillDups);
-    $Mail::Audit::KillDups::dupfile = "/home/simon/.msgid-cache";
-        my $mail = Mail::Audit->new;
-    $mail->killdups;
+  use Mail::Audit qw(KillDups);
+  $Mail::Audit::KillDups::dupfile = "/home/simon/.msgid-cache";
+  my $mail = Mail::Audit->new;
+  $mail->killdups;
 
 =head1 DESCRIPTION
 
@@ -109,10 +119,29 @@ The semantics are tortured; the return values are as follows:
 
 =back
 
-=head1 AUTHOR
+=head1 AUTHORS
 
-Simon Cozens <simon@cpan.org>
+=over 4
 
-=head1 SEE ALSO
+=item *
 
-L<Mail::Audit>
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut

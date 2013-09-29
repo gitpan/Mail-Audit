@@ -1,26 +1,16 @@
-package Mail::Audit::MimeEntity;
-
-=head1 NAME
-
-Mail::Audit::MailInternet - a Mail::Internet-based Mail::Audit object
-
-=cut
-
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit/MimeEntity.pm 22090 2006-06-05T03:28:52.097940Z rjbs  $
-
 use strict;
+package Mail::Audit::MimeEntity;
+{
+  $Mail::Audit::MimeEntity::VERSION = '2.228';
+}
+# ABSTRACT: a Mail::Internet-based Mail::Audit object
+
 use File::Path;
 use Mail::Audit::Util::Tempdir;
 use MIME::Parser;
 use MIME::Entity;
 use Mail::Audit::MailInternet;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $MIME_PARSER_TMPDIR);
-@ISA = qw(Mail::Audit MIME::Entity);
-
-$VERSION = '2.227';
-
-# this may be a security problem on an untrusted multiuser system.
-# $MIME_PARSER_TMPDIR = "/tmp/" . getpwuid($>) . "-mailaudit";
+use parent qw(Mail::Audit MIME::Entity);
 
 my $parser;
 
@@ -54,33 +44,13 @@ sub _autotype_new {
     if ($parser->can($option)) { $parser->$option($options->{$option}); }
   }
 
-  my $self;
+  my $self = $parser->parse_data(
+    [ @{ $mailinternet->head->header }, "\n", @{ $mailinternet->body } ]
+  );
 
-  # todo: add eval error trapping.  if there's a problem, return
-  # Mail::Audit::MailInternet as a fallback.
-  my $newself = eval {
-    $parser->parse_data(
-      [ @{ $mailinternet->head->header }, "\n", @{ $mailinternet->body } ]);
-  };
-
-  # we won't look at $parser->last_error because we're trying to handle as
-  # much as we can.
-  if (! $newself) {
-    return ($self, "encountered error during parse: $@");
-
-    # note to self:
-    # if the error was due to an ill-formed message/rfc822 attachment,
-    # we could reparse with extract_nested_messages => 0.
-    # it depends how badly the attachment is formed.
-    # for now we have ignore_errors(1) and we won't look at
-    # $parser->last_error.
-  } else {
-    $self = $newself;
-
-    # I am so, so sorry that this sort of thing is needed.
-    # -- rjbs, 2007-06-14
-    $self->{_log} = $mailinternet->{_log};
-  }
+  # I am so, so sorry that this sort of thing is needed.
+  # -- rjbs, 2007-06-14
+  $self->{_log} = $mailinternet->{_log};
 
   unless ($options->{output_to_core}) {
     my $output_dir = $parser->filer->output_dir;
@@ -92,8 +62,27 @@ sub _autotype_new {
   # problem. -- rjbs, 2006-10-31
   $self->{'__Mail::Audit::MimeEntity/tempdir'} = $dir;
   bless($self, $class);
-  return ($self, 0);
+  return $self;
 }
+
+
+sub parser { $parser ||= MIME::Parser->new(); }
+
+sub is_mime { 1; }
+
+1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+Mail::Audit::MimeEntity - a Mail::Internet-based Mail::Audit object
+
+=head1 VERSION
+
+version 2.228
 
 =head2 parser
 
@@ -101,10 +90,29 @@ This method returns the message's own MIME::Parser.
 
 This method is B<very> likely to go away.
 
+=head1 AUTHORS
+
+=over 4
+
+=item *
+
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
 =cut
-
-sub parser { $parser ||= MIME::Parser->new(); }
-
-sub is_mime { 1; }
-
-1;

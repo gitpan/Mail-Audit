@@ -1,12 +1,14 @@
-package Mail::Audit;
 use 5.006;
 use strict;
-
-# $Id: /my/icg/mail-audit/trunk/lib/Mail/Audit.pm 22093 2006-06-05T03:36:12.885477Z rjbs  $
+package Mail::Audit;
+{
+  $Mail::Audit::VERSION = '2.228';
+}
+# ABSTRACT: library for creating easy mail filters
 
 use Carp ();
 use File::Basename ();
-use File::HomeDir ();
+use File::HomeDir 0.61 ();
 use File::Spec ();
 use Mail::Audit::MailInternet ();
 use Mail::Internet ();
@@ -20,45 +22,6 @@ use constant REJECTED  => 100;
 use constant DEFERRED  => 75;
 use constant DELIVERED => 0;
 
-$Mail::Audit::VERSION = '2.227';
-
-=head1 NAME
-
-Mail::Audit - Library for creating easy mail filters
-
-=head1 SYNOPSIS
-
-  use Mail::Audit; # or use Mail::Audit qw(...plugins...);
- 
-  my $mail = Mail::Audit->new( emergency => "~/emergency_mbox");
- 
-  $mail->pipe("listgate p5p")            if $mail->from =~ /perl5-porters/;
-  $mail->accept("perl")                  if $mail->from =~ /perl/;
-  $mail->reject("We do not accept spam") if $mail->rblcheck();
-  $mail->ignore                          if $mail->subject =~ /boring/i;
- 
-  $mail->noexit(1);
-  $mail->accept("~/Mail/Archive/%Y%m%d");
-  $mail->noexit(0);
- 
-  $mail->accept()
-
-=head1 DESCRIPTION
-
-F<procmail> is nasty. It has a tortuous and complicated recipe format, and I
-don't like it. I wanted something flexible whereby I could filter my mail using
-Perl tests.
-
-Mail::Audit was inspired by Tom Christiansen's F<audit_mail> and F<deliverlib>
-programs. It allows a piece of email to be logged, examined, accepted into a
-mailbox, filtered, resent elsewhere, rejected, replied to, and so on. It's
-designed to allow you to easily create filter programs to stick in a
-F<.forward> file or similar.
-
-Mail::Audit groks MIME; when appropriate, it subclasses MIME::Entity.  Read the
-MIME::Tools man page for details.
-
-=cut
 
 sub import {
   my ($pkg, @plugins) = @_;
@@ -86,59 +49,6 @@ sub _get_opt {
   return $opt || {};
 }
 
-=head1 CONSTRUCTOR
-
-=over 4
-
-=item new
-
-  my $mail = Mail::Audit->new(%option)
-
-The constructor reads a mail message from C<STDIN> (or, if the C<data> option
-is set, from an array reference or \*GLOBref) and creates a C<Mail::Audit>
-object from it.
-
-Other options include the C<accept>, C<reject> or C<pipe> keys, which specify
-subroutine references to override the methods with those names.
-
-You are encouraged to specify an C<emergency> argument and check for the
-appearance of messages in that mailbox on a regular basis.  If for any reason
-an C<accept()> is unsuccessful, the message will be saved to the C<emergency>
-mailbox instead.  If no C<emergency> mailbox is defined, messages will be
-deferred back to the MTA, where they will show up in your mailq.
-
-You may also specify C<< log => $logfile >> to write a debugging log.  If you
-don't specify a log file, logs will be written to F<~/mail-audit.log>.   You
-can set the verbosity of the log with the C<loglevel> key.  A higher loglevel
-will result in more lines being logged.  The default level is 3.  To get all
-internally generated logs, log at level 5.  To get none, log at -1.  
-
-Usually, the delivery methods C<accept>, C<pipe>, and C<resend> are final;
-Mail::Audit will terminate when they are done.  If you specify C<< noexit => 1
->>, C<Mail::Audit> will not exit after completing the above actions, but
-continue running your script.
-
-The C<reject> delivery method is always final; C<noexit> has no effect.
-
-If you just want to print the message to STDOUT, $mail->print().
-
-Percent (%) signs seen in arguments to C<accept> and C<pipe> do not undergo
-C<strftime> interpolation by default.  If you want this, use the
-C<interpolate_strftime> option.  You can override the "global"
-interpolate_strftime option by passing an overriding option to C<accept> and
-C<pipe>.
-
-By default, MIME messages are automatically recognized and parsed.  This is
-potentially expensive; if you don't want MIME parsing, use the C<nomime>
-option.
-
-You can pass further MIME options in the C<mimeoptions> variable: for example,
-if you want to output_to_core (man MIME::Parser) set C<< mimeoptions =>
-{output_to_core=>1} >>.
-
-=back
-
-=cut
 
 my $default_mime_test = sub { $_[0]->get("MIME-Version") };
 
@@ -196,13 +106,10 @@ sub new {
       );
       eval {
         require Mail::Audit::MimeEntity;
-        import Mail::Audit::MimeEntity;
+        Mail::Audit::MimeEntity->import;
       };
       die "$@" if $@;
-      my $error;
-      ($self, $error)
-        = Mail::Audit::MimeEntity->_autotype_new($self, $opts{mimeoptions});
-      $self->_log(0, $error) if $error;
+      $self = Mail::Audit::MimeEntity->_autotype_new($self, $opts{mimeoptions});
     } else {
       $self->_log(3, "message is MIME, but 'nomime' option was set.");
     }
@@ -236,7 +143,7 @@ sub _default_mbox {
   my $default_mbox = $ENV{MAIL};
 
   return $default_mbox if $default_mbox;
-  
+
   my $default_maildir = File::Spec->catdir(
     File::HomeDir->my_home,
     'Maildir'
@@ -260,70 +167,6 @@ sub _exit {
   exit $exit;
 }
 
-=head1 DELIVERY METHODS
-
-=over 4
-
-=item accept
-
-  $mail->accept(\%option, @locations);
-
-You can choose to accept the mail into a mailbox by calling the C<accept>
-method; with no argument, this accepts to F</var/spool/mail/you>. The mailbox
-is opened append-write, then locked C<LOCK_EX>, the mail written and then the
-mailbox unlocked and closed.  If Mail::Audit sees that you have a maildir style
-system, where F</var/spool/mail/you> is a directory, it'll deliver in maildir
-style.  If the path you specify does not exist, Mail::Audit will assume mbox,
-unless it ends in /, which means maildir.
-
-If multiple maildirs are given, Mail::Audit will use hardlinks to deliver to
-them, so that multiple hardlinks point to the same underlying file.  (If the
-maildirs turn out to be on multiple filesystems, you get multiple files.)
-
-If you don't want the "new/cur/tmp" structure of a classical maildir, set the
-one_for_all option, and you'll still get the unique filenames.
-
-  accept( dir1, dir2, ..., { one_for_all => 1 });
-
-If you want "%" signs to be expanded according to C<strftime(3)>, you can pass
-C<accept> the option C<interpolate_strftime>:
-
-  accept( file1, file2, ..., { interpolate_strftime => 1 });
-
-"interpolate_strftime" is not enabled by default for two reasons: backward
-compatibility (though nobody I know has a % in any mail folder name) and
-username interpolation: many people like to save messages by their
-correspondent's username, and that username may contain a % sign.  If you are
-one of these people, you should
-
-  $username =~ s/%/%%/g;
-
-If your arguments contain "/", C<accept> will create arbitarily deep
-subdirectories accordingly.  Untaint your input by saying
-
-  $username =~ s,/,-,g;
-
-By default, C<accept> is final; Mail::Audit will terminate after successfully
-accepting the message.  If you want to keep going, set C<noexit>.  C<accept>
-will return the filename(s) that it saved to.
-
-  my  @pathnames = accept(file1, file2, ..., { noexit => 1 });
-  my ($pathname) = accept(file1);
- 
-If for any reason C<accept> is unable to write the message (eg. you're over
-quota), Mail::Audit will attempt delivery to the C<emergency> mailbox.  If
-C<accept> was called with multiple destinations, the C<emergency> action will
-only be taken if the message couldn't be delivered to any of the desired
-destinations.  By default the C<emergency> mailbox is set to the system
-mailbox.  If we were unable to save to the emergency mailbox, the message will
-be deferred back into the MTA's queue.  This happens whether or not C<noexit>
-is set, so if you observe that some of your C<accept>s somehow aren't getting
-run, check your mailq.
-
-If this isn't how you want local delivery to happen, you'll need to override
-this method.
-
-=cut
 
 sub _shorthand_expand {
   # perform ~user and %Y%m%d strftime expansion
@@ -348,7 +191,7 @@ sub _shorthand_expand {
 
 sub _expand_homedir {
   my ($self, $path) = @_;
-  
+
   my ($user, $rest) = $path =~ m!^~(\w*)((?:[/\\]).+)?$!;
 
   return $path unless defined $user and defined $rest;
@@ -714,16 +557,6 @@ sub _accept_to_maildir {
   return @saved_to;
 }
 
-=item reject
-
-  $mail->reject($reason);
-
-This rejects the email; it will be bounced back to the sender as undeliverable.
-If a reason is given, this will be included in the bounce.
-
-This is a final delivery method.  The C<noexit> option has no effect here.
-
-=cut
 
 sub reject {
   my $self = shift;
@@ -738,20 +571,6 @@ sub reject {
   $self->_exit(REJECTED);
 }
 
-=item resend
-
-  $mail->resend($address, \%option)
-
-Reinjects the email in its entirety to another address, using SMTP.
-
-This is a final delivery method.  Set C<noexit> if you want to keep going.
-
-Other options are all optional, and include host, port, and debug; see
-L<Mail::Internet/smtpsend>
-
-At this time this method is not overrideable by an argument to C<new>.
-
-=cut
 
 sub resend {
   my $self       = shift;
@@ -774,16 +593,6 @@ sub resend {
   }
 }
 
-=item pipe
-
-  $mail->pipe($program)
-
-This opens a pipe to an external program and feeds the mail to it.
-
-This is a final delivery method.  Set C<noexit> if you want to keep going.  If
-C<noexit> is set, the exit status of the pipe is returned.
-
-=cut
 
 sub pipe {
   my $self = shift;
@@ -817,16 +626,6 @@ sub pipe {
   return $status;
 }
 
-=item ignore
-
-  $mail->ignore;
-
-This merely ignores the email, dropping it into the bit bucket for eternity.
-
-This is a final delivery method.  Set C<noexit> if you want to keep going.
-(Calling ignore with C<noexit> set is pretty pointless.)
-
-=cut
 
 sub ignore {
   my ($self, $reason) = @_;
@@ -843,31 +642,6 @@ sub ignore {
     or $self->{_audit_opts}->{noexit});
 }
 
-=item reply
-
-  $mail->reply(%option);
-
-Sends an autoreply to the sender of the message.  Return value: the recipient
-address of the reply.
-
-Recognized content-related options are: from, subject, cc, bcc, body.  The "To"
-field defaults to the incoming message's "Reply-To" and "From" fields.  C<body>
-should be a single multiline string.
-
-Set the option C<EVEN_IF_FROM_DAEMON> to send a reply even if the original
-message was from some sort of automated agent.  What that set, only X-Loop will
-stop loops.
-
-If you use this method, use KillDups to keep track of who you've autoreplied
-to, so you don't autoreply more than once.
-
- use Mail::Audit qw(KillDups);
- $mail->reply(body=>"I am on vacation") if not $self->killdups($mail->from);
-
-C<reply> is not considered a final delivery method, so execution will continue
-after completion.
-
-=cut
 
 sub _reply_recipient {
   my $self = shift;
@@ -965,55 +739,6 @@ sub reply {
   return $rcpt;
 }
 
-=back
-
-=head1 HEADER MANAGEMENT METHODS
-
-=over
-
-=item get_header
-
-=item get
-
-  my $header = $mail->get($header);
-
-Retrieves the named header from the mail message.
-
-=item add_header
-
-=item put_header
-
-  $mail->add_header($header => $value);
-
-Inserts a new header into the mail message with the given value.  C<put_header>
-is an alias for this method.
-
-=item replace_header
-
-  $mail->replace_header($header => $value);
-
-Removes the old header, adds a new one.
-
-=item delete_header
-
-  $mail->delete_header($header);
-
-Guess.
-
-=back
-
-=head1 MISCELLANEOUS METHODS
-
-=over
-
-=item log
-
-  $mail->log($priority => $message);
-
-This method logs the given message if C<$priority> is greater than the
-F<loglevel> given during construction.
-
-=cut
 
 sub log {
   my ($self, $priority, $what) = @_;
@@ -1028,21 +753,6 @@ sub log {
     or die "couldn't write to log file: $!";
 }
 
-=item tidy
-
-  $mail->tidy;
-
-Tidies up the email as per L<Mail::Internet>.  If the message is a MIME
-message, nothing happens.
-
-=item noexit
-
-  $mail->noexit($bool);
-
-This method sets the value of C<noexit>.   If C<noexit> is true, final delivery
-methods will not be considered final.
-
-=cut
 
 # ----------------------------------------------------------
 
@@ -1055,7 +765,7 @@ sub delete_header  { $_[0]->head->delete($_[1]); }
 
 sub get {
   my ($self, $header) = @_;
-  
+
   if (wantarray) {
     my @strings = $self->head->get($header);
     chomp @strings;
@@ -1076,54 +786,6 @@ sub noexit {
   $_[0]->{_audit_opts}->{noexit} = $_[1] ? 1 : 0;
 }
 
-=back
-
-=head1 ATTRIBUTE METHODS
-
-The following attributes correspond to fields in the mail:
-
-=over 4
-
-=item * from
-
-=item * to
-
-=item * subject
-
-=item * cc
-
-=item * bcc
-
-=item * received
-
-=item * body
-
-Returns a reference to an array of lines in the body of the email.
-
-=item * header
-
-Returns the header as a single string.
-
-=item * is_mime
-
-Am I a MIME message?  If so, MIME::Entity methods apply.  Otherwise,
-Mail::Internet methods apply.
-
-=item * from_mailer
-
-Am I from a mailer-daemon?  See L<procmailrc>.  This method returns the part of
-the header that matched.  This method's implementation of the pattern is not
-identical to F<procmail>'s.
-
-=item * from_daemon
-
-Am I from any sort of daemon?  See L<procmailrc>.  This method returns the part
-of the header that matched.  This method's implementation of the pattern is not
-identical to F<procmail>'s.
-
-=back
-
-=cut
 
 # ----------------------------------------------------------
 sub from     { $_[0]->get("From") }
@@ -1238,33 +900,355 @@ sub _mkdir_p {  # mkdir -p (also create parents if necessary)
   return;
 }
 
-=head1 LICENSE
 
-The usual. This program is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+
+1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+Mail::Audit - library for creating easy mail filters
+
+=head1 VERSION
+
+version 2.228
+
+=head1 SYNOPSIS
+
+  use Mail::Audit; # or use Mail::Audit qw(...plugins...);
+ 
+  my $mail = Mail::Audit->new( emergency => "~/emergency_mbox");
+ 
+  $mail->pipe("listgate p5p")            if $mail->from =~ /perl5-porters/;
+  $mail->accept("perl")                  if $mail->from =~ /perl/;
+  $mail->reject("We do not accept spam") if $mail->rblcheck();
+  $mail->ignore                          if $mail->subject =~ /boring/i;
+ 
+  $mail->noexit(1);
+  $mail->accept("~/Mail/Archive/%Y%m%d");
+  $mail->noexit(0);
+ 
+  $mail->accept()
+
+=head1 DESCRIPTION
+
+F<procmail> is nasty. It has a tortuous and complicated recipe format, and I
+don't like it. I wanted something flexible whereby I could filter my mail using
+Perl tests.
+
+Mail::Audit was inspired by Tom Christiansen's F<audit_mail> and F<deliverlib>
+programs. It allows a piece of email to be logged, examined, accepted into a
+mailbox, filtered, resent elsewhere, rejected, replied to, and so on. It's
+designed to allow you to easily create filter programs to stick in a
+F<.forward> file or similar.
+
+Mail::Audit groks MIME; when appropriate, it subclasses MIME::Entity.  Read the
+MIME::Tools man page for details.
+
+=head1 CONSTRUCTOR
+
+=over 4
+
+=item new
+
+  my $mail = Mail::Audit->new(%option)
+
+The constructor reads a mail message from C<STDIN> (or, if the C<data> option
+is set, from an array reference or \*GLOBref) and creates a C<Mail::Audit>
+object from it.
+
+Other options include the C<accept>, C<reject> or C<pipe> keys, which specify
+subroutine references to override the methods with those names.
+
+You are encouraged to specify an C<emergency> argument and check for the
+appearance of messages in that mailbox on a regular basis.  If for any reason
+an C<accept()> is unsuccessful, the message will be saved to the C<emergency>
+mailbox instead.  If no C<emergency> mailbox is defined, messages will be
+deferred back to the MTA, where they will show up in your mailq.
+
+You may also specify C<< log => $logfile >> to write a debugging log.  If you
+don't specify a log file, logs will be written to F<~/mail-audit.log>.   You
+can set the verbosity of the log with the C<loglevel> key.  A higher loglevel
+will result in more lines being logged.  The default level is 3.  To get all
+internally generated logs, log at level 5.  To get none, log at -1.  
+
+Usually, the delivery methods C<accept>, C<pipe>, and C<resend> are final;
+Mail::Audit will terminate when they are done.  If you specify C<< noexit => 1
+>>, C<Mail::Audit> will not exit after completing the above actions, but
+continue running your script.
+
+The C<reject> delivery method is always final; C<noexit> has no effect.
+
+If you just want to print the message to STDOUT, $mail->print().
+
+Percent (%) signs seen in arguments to C<accept> and C<pipe> do not undergo
+C<strftime> interpolation by default.  If you want this, use the
+C<interpolate_strftime> option.  You can override the "global"
+interpolate_strftime option by passing an overriding option to C<accept> and
+C<pipe>.
+
+By default, MIME messages are automatically recognized and parsed.  This is
+potentially expensive; if you don't want MIME parsing, use the C<nomime>
+option.
+
+You can pass further MIME options in the C<mimeoptions> variable: for example,
+if you want to output_to_core (man MIME::Parser) set C<< mimeoptions =>
+{output_to_core=>1} >>.
+
+=back
+
+=head1 DELIVERY METHODS
+
+=over 4
+
+=item accept
+
+  $mail->accept(\%option, @locations);
+
+You can choose to accept the mail into a mailbox by calling the C<accept>
+method; with no argument, this accepts to F</var/spool/mail/you>. The mailbox
+is opened append-write, then locked C<LOCK_EX>, the mail written and then the
+mailbox unlocked and closed.  If Mail::Audit sees that you have a maildir style
+system, where F</var/spool/mail/you> is a directory, it'll deliver in maildir
+style.  If the path you specify does not exist, Mail::Audit will assume mbox,
+unless it ends in /, which means maildir.
+
+If multiple maildirs are given, Mail::Audit will use hardlinks to deliver to
+them, so that multiple hardlinks point to the same underlying file.  (If the
+maildirs turn out to be on multiple filesystems, you get multiple files.)
+
+If you don't want the "new/cur/tmp" structure of a classical maildir, set the
+one_for_all option, and you'll still get the unique filenames.
+
+  accept( dir1, dir2, ..., { one_for_all => 1 });
+
+If you want "%" signs to be expanded according to C<strftime(3)>, you can pass
+C<accept> the option C<interpolate_strftime>:
+
+  accept( file1, file2, ..., { interpolate_strftime => 1 });
+
+"interpolate_strftime" is not enabled by default for two reasons: backward
+compatibility (though nobody I know has a % in any mail folder name) and
+username interpolation: many people like to save messages by their
+correspondent's username, and that username may contain a % sign.  If you are
+one of these people, you should
+
+  $username =~ s/%/%%/g;
+
+If your arguments contain "/", C<accept> will create arbitarily deep
+subdirectories accordingly.  Untaint your input by saying
+
+  $username =~ s,/,-,g;
+
+By default, C<accept> is final; Mail::Audit will terminate after successfully
+accepting the message.  If you want to keep going, set C<noexit>.  C<accept>
+will return the filename(s) that it saved to.
+
+  my  @pathnames = accept(file1, file2, ..., { noexit => 1 });
+  my ($pathname) = accept(file1);
+
+If for any reason C<accept> is unable to write the message (eg. you're over
+quota), Mail::Audit will attempt delivery to the C<emergency> mailbox.  If
+C<accept> was called with multiple destinations, the C<emergency> action will
+only be taken if the message couldn't be delivered to any of the desired
+destinations.  By default the C<emergency> mailbox is set to the system
+mailbox.  If we were unable to save to the emergency mailbox, the message will
+be deferred back into the MTA's queue.  This happens whether or not C<noexit>
+is set, so if you observe that some of your C<accept>s somehow aren't getting
+run, check your mailq.
+
+If this isn't how you want local delivery to happen, you'll need to override
+this method.
+
+=item reject
+
+  $mail->reject($reason);
+
+This rejects the email; it will be bounced back to the sender as undeliverable.
+If a reason is given, this will be included in the bounce.
+
+This is a final delivery method.  The C<noexit> option has no effect here.
+
+=item resend
+
+  $mail->resend($address, \%option)
+
+Reinjects the email in its entirety to another address, using SMTP.
+
+This is a final delivery method.  Set C<noexit> if you want to keep going.
+
+Other options are all optional, and include host, port, and debug; see
+L<Mail::Internet/smtpsend>
+
+At this time this method is not overrideable by an argument to C<new>.
+
+=item pipe
+
+  $mail->pipe($program)
+
+This opens a pipe to an external program and feeds the mail to it.
+
+This is a final delivery method.  Set C<noexit> if you want to keep going.  If
+C<noexit> is set, the exit status of the pipe is returned.
+
+=item ignore
+
+  $mail->ignore;
+
+This merely ignores the email, dropping it into the bit bucket for eternity.
+
+This is a final delivery method.  Set C<noexit> if you want to keep going.
+(Calling ignore with C<noexit> set is pretty pointless.)
+
+=item reply
+
+  $mail->reply(%option);
+
+Sends an autoreply to the sender of the message.  Return value: the recipient
+address of the reply.
+
+Recognized content-related options are: from, subject, cc, bcc, body.  The "To"
+field defaults to the incoming message's "Reply-To" and "From" fields.  C<body>
+should be a single multiline string.
+
+Set the option C<EVEN_IF_FROM_DAEMON> to send a reply even if the original
+message was from some sort of automated agent.  What that set, only X-Loop will
+stop loops.
+
+If you use this method, use KillDups to keep track of who you've autoreplied
+to, so you don't autoreply more than once.
+
+ use Mail::Audit qw(KillDups);
+ $mail->reply(body=>"I am on vacation") if not $self->killdups($mail->from);
+
+C<reply> is not considered a final delivery method, so execution will continue
+after completion.
+
+=back
+
+=head1 HEADER MANAGEMENT METHODS
+
+=over
+
+=item get_header
+
+=item get
+
+  my $header = $mail->get($header);
+
+Retrieves the named header from the mail message.
+
+=item add_header
+
+=item put_header
+
+  $mail->add_header($header => $value);
+
+Inserts a new header into the mail message with the given value.  C<put_header>
+is an alias for this method.
+
+=item replace_header
+
+  $mail->replace_header($header => $value);
+
+Removes the old header, adds a new one.
+
+=item delete_header
+
+  $mail->delete_header($header);
+
+Guess.
+
+=back
+
+=head1 MISCELLANEOUS METHODS
+
+=over
+
+=item log
+
+  $mail->log($priority => $message);
+
+This method logs the given message if C<$priority> is greater than the
+F<loglevel> given during construction.
+
+=item tidy
+
+  $mail->tidy;
+
+Tidies up the email as per L<Mail::Internet>.  If the message is a MIME
+message, nothing happens.
+
+=item noexit
+
+  $mail->noexit($bool);
+
+This method sets the value of C<noexit>.   If C<noexit> is true, final delivery
+methods will not be considered final.
+
+=back
+
+=head1 ATTRIBUTE METHODS
+
+The following attributes correspond to fields in the mail:
+
+=over 4
+
+=item * from
+
+=item * to
+
+=item * subject
+
+=item * cc
+
+=item * bcc
+
+=item * received
+
+=item * body
+
+Returns a reference to an array of lines in the body of the email.
+
+=item * header
+
+Returns the header as a single string.
+
+=item * is_mime
+
+Am I a MIME message?  If so, MIME::Entity methods apply.  Otherwise,
+Mail::Internet methods apply.
+
+=item * from_mailer
+
+Am I from a mailer-daemon?  See L<procmailrc>.  This method returns the part of
+the header that matched.  This method's implementation of the pattern is not
+identical to F<procmail>'s.
+
+=item * from_daemon
+
+Am I from any sort of daemon?  See L<procmailrc>.  This method returns the part
+of the header that matched.  This method's implementation of the pattern is not
+identical to F<procmail>'s.
+
+=back
 
 =head1 BUGS
 
-Numerous and sometimes nasty.  RJBS is working to eradicate them all.
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Mail-Audit>
-
-=head1 PERL EMAIL PROJECT
-
-This module is maintained by the Perl Email Project, and is considered
-superseded by L<Email::Filter>.
-
-L<http://emailproject.perl.org/wiki/Mail::Audit>
+Numerous and sometimes nasty.
 
 =head1 CAVEATS
 
-If your mailbox file in /var/spool/mail/ doesn't already exist, you may need to
-use your standard system MDA to create it.  After it's been created,
+If your mailbox file in F</var/spool/mail/> doesn't already exist, you may need
+to use your standard system MDA to create it.  After it's been created,
 Mail::Audit should be able to append to it.  Mail::Audit may not be able to
-create /var/spool/mail because programs run from .forward don't inherit the
-special permissions needed to create files in that directory.
+create F</var/spool/mail> because programs run from F<.forward> don't inherit
+the special permissions needed to create files in that directory.
 
-=head1 AUTHORS
+=head1 HISTORY
 
 Simon Cozens <simon@cpan.org> wrote versions 1 and 2.
 
@@ -1274,32 +1258,73 @@ and autoreply features.
 
 Ricardo SIGNES <rjbs@cpan.org> took over after Meng and tried to tame the
 beast, refactoring, documenting, and testing.  Thanks to Listbox.com for
-sponsoring maintenance of this module !
+sponsoring maintenance of this module!
 
 =head1 SEE ALSO
 
-=over
+=over 4
 
-=item * L<http://www.perl.com/pub/a/2001/07/17/mailfiltering.html>
+=item *
 
-=item * L<Mail::Internet>
+L<http://www.perl.com/pub/a/2001/07/17/mailfiltering.html>
 
-=item * L<Mail::SMTP>
+=item *
 
-=item * L<Mail::Audit::List>
+L<Mail::Internet>
 
-=item * L<Mail::Audit::PGP>
+=item *
 
-=item * L<Mail::Audit::MAPS>
+L<Mail::SMTP>
 
-=item * L<Mail::Audit::KillDups>
+=item *
 
-=item * L<Mail::Audit::Razor>
+L<Mail::Audit::List>
 
-=item * L<Mail::Audit::Vacation>
+=item *
+
+L<Mail::Audit::PGP>
+
+=item *
+
+L<Mail::Audit::MAPS>
+
+=item *
+
+L<Mail::Audit::KillDups>
+
+=item *
+
+L<Mail::Audit::Razor>
+
+=item *
+
+L<Mail::Audit::Vacation>
 
 =back
 
-=cut
+=head1 AUTHORS
 
-1;
+=over 4
+
+=item *
+
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut

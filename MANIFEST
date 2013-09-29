@@ -1,18 +1,23 @@
-bin/popread
-bin/proc2ma
 Changes
 FAQ
+LICENSE
+MANIFEST
+META.json
+META.yml
+Makefile.PL
+README
+bin/popread
+bin/proc2ma
+dist.ini
 lib/Mail/Audit.pm
 lib/Mail/Audit/KillDups.pm
-lib/Mail/Audit/MailInternet.pm
 lib/Mail/Audit/MAPS.pm
+lib/Mail/Audit/MailInternet.pm
 lib/Mail/Audit/MimeEntity.pm
 lib/Mail/Audit/Util/Tempdir.pm
 lib/Mail/Audit/Vacation.pm
-LICENSE
-Makefile.PL
-MANIFEST			This list of files
-README
+t/00-compile.t
+t/000-report-versions-tiny.t
 t/basic.t
 t/custom-accept.t
 t/dan-root.t
@@ -24,7 +29,5 @@ t/messages/mime-text.msg
 t/messages/simple.msg
 t/reject.t
 t/shorthand.t
-xt/release/pod-coverage.t
-xt/release/pod.t
-META.yml                                 Module YAML meta-data (added by MakeMaker)
-META.json                                Module JSON meta-data (added by MakeMaker)
+xt/release/changes_has_content.t
+xt/release/pod-syntax.t

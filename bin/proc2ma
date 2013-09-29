@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+# PODNAME: proc2ma
 my @grammar;
 
 my (%flags, $return);
@@ -79,13 +80,17 @@ sub parse_find {
     $return;
 }
 
+__END__
+
+=pod
+
 =head1 NAME
 
-proc2ma - Procmail to Mail::Audit migrator. 
+proc2ma
 
-=head1 USAGE
+=head1 VERSION
 
-    proc2ma .procmailrc > filter.pl
+version 2.228
 
 =head1 DESCRIPTION
 
@@ -94,6 +99,14 @@ F<Mail::Audit>. It reads in F<procmail> F<.rc> files, and spits out
 a first approximation to a F<Mail::Audit> filter which will perform the
 same filtering. You'll need to edit it, of course, and there's still a
 lot it can't do. But it'll give you a good start.
+
+=head1 NAME
+
+proc2ma - Procmail to Mail::Audit migrator. 
+
+=head1 USAGE
+
+    proc2ma .procmailrc > filter.pl
 
 =head1 VERSION
 
@@ -106,3 +119,30 @@ Infinite
 =head1 SEE ALSO
 
 F<procmail>, F<Mail::Audit>.
+
+=head1 AUTHORS
+
+=over 4
+
+=item *
+
+Simon Cozens
+
+=item *
+
+Meng Weng Wong
+
+=item *
+
+Ricardo SIGNES
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Simon Cozens.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
